@@ -63,10 +63,12 @@ struct Cli {
     #[arg(long)]
     devices: bool,
 
-    /// Native messaging manifest path (passed by Chrome/Chromium — ignored).
-    #[arg(hide = true)]
+    /// Arguments passed by the browser when launching the native messaging
+    /// host (Chrome: extension origin; Firefox: manifest path + extension ID).
+    /// Ignored.
+    #[arg(hide = true, num_args = 0..)]
     #[allow(dead_code)]
-    manifest_path: Option<String>,
+    browser_args: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------

@@ -94,17 +94,24 @@ function onDisconnect(): void {
   );
 }
 
-function reconnectOnMessage(
-  _msg: unknown,
+/**
+ * Route messages from popup/options to the native host.
+ *
+ * The native port lives in the background, so view requests (`typeDevices`,
+ * `typeVersion`) and share actions must be forwarded. Host replies are pushed
+ * back to every view by `onPortMessage` → `broadcast`.
+ */
+function onViewMessage(
+  msg: unknown,
   _sender: chrome.runtime.MessageSender,
   _sendResponse: (response?: unknown) => void,
 ): void {
   if (!port) connect();
+  port?.postMessage(msg);
 }
 
-// Listen for any message from popup/options → reconnect port.
 // Must be synchronous; we drop the result.
-chrome.runtime.onMessage.addListener(reconnectOnMessage);
+chrome.runtime.onMessage.addListener(onViewMessage);
 
 // ── Native message handling ───────────────────────────────────────────
 
