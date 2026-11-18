@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "KDE Connect",
+  "short_name": "kdeconnect",
+  "description": "Allows sharing pages, videos, and images from your browser to KDE Connect devices.",
+  "version": "0.2.0",
+  "homepage_url": "https://github.com/pdf/kdeconnect-chrome-extension",
+  "action": {
+    "default_title": "KDE Connect",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "256": "images/kdeconnect-256.png",
+      "128": "images/kdeconnect-128.png",
+      "64": "images/kdeconnect-64.png",
+      "48": "images/kdeconnect-48.png",
+      "32": "images/kdeconnect-32.png",
+      "24": "images/kdeconnect-24.png",
+      "22": "images/kdeconnect-22.png",
+      "16": "images/kdeconnect-16.png"
+    }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+C"
+      }
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "permissions": ["nativeMessaging", "storage", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "kde-connect@0xc0dedbad.com",
+      "strict_min_version": "121.0"
+    }
+  },
+  "icons": {
+    "256": "images/kdeconnect-256.png",
+    "128": "images/kdeconnect-128.png",
+    "64": "images/kdeconnect-64.png",
+    "48": "images/kdeconnect-48.png",
+    "32": "images/kdeconnect-32.png",
+    "24": "images/kdeconnect-24.png",
+    "22": "images/kdeconnect-22.png",
+    "16": "images/kdeconnect-16.png"
+  }
+}

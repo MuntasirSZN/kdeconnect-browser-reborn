@@ -1,0 +1,263 @@
+//! KDE Connect Chrome Extension — Native Messaging Host.
+//!
+//! Bridges the browser extension with KDE Connect over D-Bus.
+//!
+//! ## Usage modes
+//!
+//! | Flag | Action |
+//! |------|--------|
+//! | _(none)_ | Run native messaging daemon (stdin → D-Bus → stdout) |
+//! | `--install` | Interactive self-install for one or more browsers |
+//! | `--install --dev`  | Same, but prompts for a custom extension ID |
+//! | `--version`   | Print version info and exit |
+//! | `--devices`   | List known KDE Connect devices and exit |
+
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
+use clap::Parser;
+use tokio::sync::Mutex;
+use tracing::{error, info, warn};
+use tracing_subscriber::EnvFilter;
+
+mod dbus;
+mod install;
+mod messaging;
+mod types;
+
+use dbus::SharedDevice;
+use messaging::{Reader, Writer};
+use types::{Message, MessageType, ShareRequest};
+
+// ---------------------------------------------------------------------------
+// Constants (matching Go's protocol/cli versions)
+// ---------------------------------------------------------------------------
+
+const PROTOCOL_VERSION: &str = "0.1.3";
+const CLI_VERSION: &str = "0.1.6";
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+
+#[derive(Parser)]
+#[command(
+    name = "kdeconnect-chrome-extension",
+    version = CLI_VERSION,
+    disable_version_flag = true,
+)]
+struct Cli {
+    /// Perform interactive install into browser native messaging hosts dirs.
+    #[arg(long)]
+    install: bool,
+
+    /// Install as developer — prompts for custom extension ID.
+    #[arg(long)]
+    dev: bool,
+
+    /// Display version and exit.
+    #[arg(long)]
+    version: bool,
+
+    /// List visible KDE Connect devices and exit.
+    #[arg(long)]
+    devices: bool,
+
+    /// Native messaging manifest path (passed by Chrome/Chromium — ignored).
+    #[arg(hide = true)]
+    #[allow(dead_code)]
+    manifest_path: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stderr());
+    // Initialise structured logging to stderr (replaces Go's log()).
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_writer(non_blocking)
+        .init();
+
+    let cli = Cli::parse();
+
+    // --version
+    if cli.version {
+        println!(
+            "kdeconnect-chrome-extension version {} (protocol {}), built with rustc",
+            CLI_VERSION, PROTOCOL_VERSION,
+        );
+        return Ok(());
+    }
+
+    // --install / --install --dev
+    if cli.install {
+        return install::install(cli.dev).context("installation failed");
+    }
+
+    // ---- D-Bus connection (required for --devices and daemon mode) ----
+    let conn = dbus::open_connection().await?;
+
+    // Enumerate devices
+    let devices: Vec<SharedDevice> = dbus::discover_devices(&conn)
+        .await
+        .context("discover KDE Connect devices")?;
+
+    // --devices
+    if cli.devices {
+        for state in &devices {
+            let dev = state.lock().await;
+            println!(
+                "- {}: {} (paired: {}; reachable: {})",
+                dev.device.name, dev.device.id, dev.device.is_trusted, dev.device.is_reachable,
+            );
+        }
+        return Ok(());
+    }
+
+    // ---- Default: native messaging daemon ----
+    run_daemon(conn, devices).await
+}
+
+// ---------------------------------------------------------------------------
+// Daemon mode
+// ---------------------------------------------------------------------------
+
+async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Result<()> {
+    info!(count = devices.len(), "devices discovered");
+
+    // Register D-Bus signal match rules for each device.
+    for state in &devices {
+        let obj_path = state.lock().await.object_path.clone();
+        if let Err(e) = dbus::add_device_match_rules(&conn, &obj_path).await {
+            warn!(path = %obj_path, error = %e, "failed to add match rules");
+        }
+    }
+
+    let devices = Arc::new(Mutex::new(devices));
+
+    // ---- Channels ----
+    // Outbound: signal handlers & request responses → stdout.
+    let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+    // ---- Spawn signal listener (D-Bus property-change → output_tx) ----
+    dbus::spawn_signal_listener(conn.clone(), devices.clone(), output_tx.clone());
+
+    // ---- Stdout writer task ----
+    let mut writer = Writer::stdout();
+    let stdout_handle = tokio::spawn(async move {
+        while let Some(msg) = output_rx.recv().await {
+            if let Err(e) = writer.write(&msg).await {
+                error!(error = %e, "stdout write error");
+            }
+        }
+    });
+
+    // ---- Stdin reader (main loop) ----
+    let mut reader = Reader::stdin();
+    loop {
+        let msg = match reader.read().await {
+            Ok(Some(m)) => m,
+            Ok(None) => {
+                info!("stdin closed, shutting down");
+                break;
+            }
+            Err(e) => {
+                error!(error = %e, "stdin read error, continuing");
+                continue;
+            }
+        };
+
+        if let Err(e) = handle_message(&conn, &devices, &msg, &output_tx).await {
+            error!(error = %e, "handling message {:?}", msg.msg_type);
+        }
+    }
+
+    // ---- Cleanup ----
+    drop(output_tx);
+    let _ = stdout_handle.await;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Message dispatch
+// ---------------------------------------------------------------------------
+
+async fn handle_message(
+    conn: &zbus::Connection,
+    devices: &Arc<Mutex<Vec<SharedDevice>>>,
+    msg: &Message,
+    output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+) -> Result<()> {
+    match msg.msg_type {
+        MessageType::Devices => {
+            // Build a map of id→Device for the response (sorted keys via BTreeMap).
+            let guard = devices.lock().await;
+            let mut map = std::collections::BTreeMap::new();
+            for d in guard.iter() {
+                if let Ok(s) = d.try_lock() {
+                    map.insert(s.device.id.clone(), s.device.clone());
+                }
+            }
+            let data = serde_json::to_value(map)?;
+            let response = Message::result(MessageType::Devices, data);
+            let _ = output_tx.send(response);
+        }
+
+        MessageType::Share => {
+            let share: ShareRequest = msg
+                .data
+                .as_ref()
+                .and_then(|d| serde_json::from_value(d.clone()).ok())
+                .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
+
+            // Find the device by ID
+            let device_arc = {
+                let guard = devices.lock().await;
+                guard
+                    .iter()
+                    .find(|d| {
+                        d.try_lock()
+                            .map(|s| s.device.id == share.target)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+            };
+
+            match device_arc {
+                Some(d) => {
+                    let state = d.lock().await;
+                    dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
+                    dbus::share_url(conn, &state.device.id, &share.url).await?;
+                }
+                None => anyhow::bail!("unknown device: {}", share.target),
+            }
+        }
+
+        MessageType::Version => {
+            let response = Message::result(
+                MessageType::Version,
+                serde_json::Value::String(PROTOCOL_VERSION.to_owned()),
+            );
+            let _ = output_tx.send(response);
+        }
+
+        MessageType::DeviceUpdate => {
+            // Outbound-only — log if the extension sends one.
+            warn!("unexpected DeviceUpdate from extension");
+        }
+
+        MessageType::Error => {
+            // Outbound-only — log anything we receive.
+            warn!(data = ?msg.data, "error message from extension");
+        }
+    }
+
+    Ok(())
+}

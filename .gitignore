@@ -1,2 +1,6 @@
-kdeconnect-chrome-extension
-vendor/**/*
+# Rust build output
+/target/
+
+# Extension build
+/extension/node_modules/
+/extension/dist/

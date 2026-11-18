@@ -3,7 +3,8 @@
 A Chrome (and compatible) browser extension to send pages and content from your
 browser to connected KDE Connect devices, via browser action or context menu.
 
-__Update__: As of v0.1.0 the browser extension and installer now also [supports Firefox](https://addons.mozilla.org/en-US/firefox/addon/kde_connect/).
+__Update__: As of v0.2.0 the native messaging host has been rewritten in Rust
+for improved reliability, performance, and maintainability.
 
 ## Installation
 
@@ -12,95 +13,68 @@ devices.  As a result, installation is a little more involved than stand-alone
 extensions.
 
 1. Download the [latest release](https://github.com/pdf/kdeconnect-chrome-extension/releases/latest) of the host application.
-2. Close your browser
+2. Close your browser.
 3. Extract the host application anywhere, open a terminal and run the install
    command:
 
    ```bash
-   ./kdeconnect-chrome-extension -install
+   ./kdeconnect-chrome-extension --install
    ```
 
-   It will prompt you to select the browser you wish to install for, use `Space`
-   to select your browser(s), and `Enter` to accept. The installer will deploy
-   itself to the appropriate location for the selected browser.
+   It will prompt you to select the browser you wish to install for, use
+   `Space` to select your browser(s), and `Enter` to confirm. The installer
+   will deploy itself to the appropriate location for the selected browser.
 
-   If prompted for an extension ID, just hit `Enter` to continue, unless you
-   are a developer.
+   If you wish to install as a developer (custom extension ID), add `--dev`:
+
+   ```bash
+   ./kdeconnect-chrome-extension --install --dev
+   ```
 
    If you wish to deploy system-wide, rather than for the current user, simply
    run as root:
 
    ```bash
-   sudo ./kdeconnect-chrome-extension -install
+   sudo ./kdeconnect-chrome-extension --install
    ```
 
 4. Start your browser.
-5. Install the extension from the [Chome Web Store](https://chrome.google.com/webstore/detail/kde-connect/ofmplbbfigookafjahpeepbggpofdhbo) or [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/kde_connect/).
-6. Done
+5. Install the extension from the [Chrome Web Store](https://chrome.google.com/webstore/detail/kde-connect/ofmplbbfigookafjahpeepbggpofdhbo) or [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/kde_connect/).
+6. Done.
 
-Currently only Linux amd64 builds are produced, however please file an issue if
-you would like other operating systems or architectures, as the host should run
-anywhere.
+Currently only Linux x86-64 builds are produced; however the code is portable
+and should run anywhere the Rust toolchain supports.
 
-## Upgrading
+## Building from source
 
-Updates to the extension will be delivered automatically via the Chrome Store.
-If you are prompted to upgrade the host application, follow these instructions.
-
-1. Download the [latest release](https://github.com/pdf/kdeconnect-chrome-extension/releases/latest) of the host application.
-2. Close your browser
-3. Extract the host application anywhere, open a terminal and run the install
-   command:
-
-   ```bash
-   ./kdeconnect-chrome-extension -install
-   ```
-
-   It will prompt you to select the browser you wish to install for, use `Space`
-   to select your browser(s), and `Enter` to accept. The installer will deploy
-   itself to the appropriate location for the selected browser.
-
-   If prompted for an extension ID, just hit `Enter` to continue, unless you
-   are a developer.
-
-   If you wish to deploy system-wide, rather than for the current user, simply
-   run as root:
-
-   ```bash
-   sudo ./kdeconnect-chrome-extension -install
-   ```
-
-4. Start your browser.
-6. Done
-
-## Building the Host from source
-
-1. Install the [Go toolchain](https://golang.org) v1.7+
-2. Install [glide](https://github.com/Masterminds/glide):
-
-   ```bash
-   go get -u github.com/Masterminds/glide
-   ```
-
-3. Obtain the source:
+1. Install the [Rust toolchain](https://rustup.rs) (v1.75+).
+2. Clone the repository:
 
    ```bash
    git clone https://github.com/pdf/kdeconnect-chrome-extension.git
    cd kdeconnect-chrome-extension
    ```
 
-4. Install dependecies:
+3. Build:
 
    ```bash
-   glide install
+   cargo build --release
    ```
 
-5. Install the binary:
+You will find the binary at `target/release/kdeconnect-chrome-extension`.
 
-   ```bash
-   go install
-   ```
+## Usage
 
-You will find the binary in `${GOPATH}/bin/kdeconnect-chrome-extension` if
-`$GOPATH` is set, or `${HOME}/go/bin/kdeconnect-chrome-extension` for Go v1.8+
-without `$GOPATH`.
+```
+Usage: kdeconnect-chrome-extension [OPTIONS]
+
+Options:
+      --install    Perform interactive install into browser native messaging hosts dirs
+      --dev        Install as developer — prompts for custom extension ID
+      --version    Display version and exit
+      --devices    List visible KDE Connect devices and exit
+  -h, --help       Print help
+```
+
+Without any flags the program runs as a native messaging host daemon, reading
+JSON messages from stdin and writing responses to stdout.

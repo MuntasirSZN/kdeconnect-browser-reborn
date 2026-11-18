@@ -1,0 +1,149 @@
+/* ───────── Popup — KDE Connect ───────── */
+
+:root {
+  --bg: #fff;
+  --text: #222;
+  --border: #e0e0e0;
+  --accent: #fc6a00; /* KDE Connect orange */
+  --accent-hover: #e05e00;
+  --muted: #666;
+  --surface: #f5f5f5;
+  --disabled: #bbb;
+  --error: #d32f2f;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --text: #e0e0e0;
+    --border: #333;
+    --accent: #fc6a00;
+    --accent-hover: #ff8533;
+    --muted: #999;
+    --surface: #2a2a2a;
+    --disabled: #555;
+    --error: #ef5350;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  width: 300px;
+  min-height: 120px;
+  background: var(--bg);
+}
+
+/* ── Header ── */
+
+#header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+#header h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Status bar ── */
+
+#status {
+  padding: 4px 14px;
+}
+
+.status {
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.status.error {
+  color: var(--error);
+}
+
+.status a {
+  color: var(--accent);
+}
+
+/* ── Device list ── */
+
+#devices {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px 0;
+  font-size: 13px;
+}
+
+/* ── Device button ── */
+
+.device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.device:not(:disabled):hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.device:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.device-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.device-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-send {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.device:not(:disabled):hover .device-send {
+  background: rgba(255, 255, 255, 0.2);
+}
