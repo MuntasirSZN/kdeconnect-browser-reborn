@@ -112,3 +112,14 @@ impl StdinReader {
         Self::new(tokio::io::stdin())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn partial_length_prefix_is_clean_eof() {
+        let mut reader = Reader::new(&[0u8, 1][..]);
+        assert!(reader.read().await.expect("read").is_none());
+    }
+}

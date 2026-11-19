@@ -103,12 +103,26 @@ async fn main() -> Result<()> {
     }
 
     // ---- D-Bus connection (required for --devices and daemon mode) ----
-    let conn = dbus::open_connection().await?;
+    let conn = match dbus::open_connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            if !cli.devices {
+                write_protocol_error(&format!("cannot connect to the session bus: {e:#}")).await;
+            }
+            return Err(e).context("open session bus");
+        }
+    };
 
     // Enumerate devices
-    let devices: Vec<SharedDevice> = dbus::discover_devices(&conn)
-        .await
-        .context("discover KDE Connect devices")?;
+    let devices: Vec<SharedDevice> = match dbus::discover_devices(&conn).await {
+        Ok(d) => d,
+        Err(e) => {
+            if !cli.devices {
+                write_protocol_error(&format!("KDE Connect unavailable: {e:#}")).await;
+            }
+            return Err(e).context("discover KDE Connect devices");
+        }
+    };
 
     // --devices
     if cli.devices {
@@ -197,6 +211,17 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
 // Message dispatch
 // ---------------------------------------------------------------------------
 
+/// Tell the extension why the host cannot run, before exiting.  Failures to
+/// write are ignored — stderr already carries the error.
+async fn write_protocol_error(text: &str) {
+    let mut writer = Writer::stdout();
+    let msg = Message::result(
+        MessageType::Error,
+        serde_json::Value::String(text.to_owned()),
+    );
+    let _ = writer.write(&msg).await;
+}
+
 async fn handle_message(
     conn: &zbus::Connection,
     devices: &Arc<Mutex<Vec<SharedDevice>>>,
@@ -212,32 +237,11 @@ async fn handle_message(
         }
 
         MessageType::Share => {
-            let share: ShareRequest = msg
-                .data
-                .as_ref()
-                .and_then(|d| serde_json::from_value(d.clone()).ok())
-                .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
-
-            // Find the device by ID
-            let device_arc = {
-                let guard = devices.lock().await;
-                guard
-                    .iter()
-                    .find(|d| {
-                        d.try_lock()
-                            .map(|s| s.device.id == share.target)
-                            .unwrap_or(false)
-                    })
-                    .cloned()
-            };
-
-            match device_arc {
-                Some(d) => {
-                    let state = d.lock().await;
-                    dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
-                    dbus::share_url(conn, &state.device.id, &share.url).await?;
-                }
-                None => anyhow::bail!("unknown device: {}", share.target),
+            if let Err(e) = handle_share(conn, devices, msg).await {
+                let _ = output_tx.send(Message::result(
+                    MessageType::Error,
+                    serde_json::Value::String(format!("{e:#}")),
+                ));
             }
         }
 
@@ -261,4 +265,59 @@ async fn handle_message(
     }
 
     Ok(())
+}
+
+async fn handle_share(
+    conn: &zbus::Connection,
+    devices: &Arc<Mutex<Vec<SharedDevice>>>,
+    msg: &Message,
+) -> Result<()> {
+    let share: ShareRequest = msg
+        .data
+        .as_ref()
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
+
+    // Find the device by ID
+    let device_arc = {
+        let guard = devices.lock().await;
+        guard
+            .iter()
+            .find(|d| {
+                d.try_lock()
+                    .map(|s| s.device.id == share.target)
+                    .unwrap_or(false)
+            })
+            .cloned()
+    };
+
+    match device_arc {
+        Some(d) => {
+            let state = d.lock().await;
+            dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
+            dbus::share_url(conn, &state.device.id, &share.url).await?;
+        }
+        None => anyhow::bail!("unknown device: {}", share.target),
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_arguments_are_accepted() {
+        let cli = Cli::try_parse_from([
+            "kdeconnect-chrome-extension",
+            "/home/user/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json",
+            "kde-connect@0xc0dedbad.com",
+        ])
+        .expect("Firefox argv");
+        assert!(!cli.install && !cli.dev && !cli.version && !cli.devices);
+
+        Cli::try_parse_from(["kdeconnect-chrome-extension", "chrome-extension://abcdef/"])
+            .expect("Chrome argv");
+    }
 }
