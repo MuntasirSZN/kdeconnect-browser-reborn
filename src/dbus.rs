@@ -108,10 +108,7 @@ async fn get_prop_raw(conn: &Connection, path: &str, prop: &str) -> Result<Owned
 }
 
 /// Call `Properties.GetAll` and return every property as an `OwnedVariant`.
-async fn fetch_all_props(
-    conn: &Connection,
-    path: &str,
-) -> Result<HashMap<String, OwnedVariant>> {
+async fn fetch_all_props(conn: &Connection, path: &str) -> Result<HashMap<String, OwnedVariant>> {
     let reply = conn
         .call_method(
             Some(DEST),
@@ -408,8 +405,7 @@ pub fn spawn_signal_listener(
                     let (Some(path), Some(member)) = (path, member) else {
                         continue;
                     };
-                    if let Err(e) =
-                        handle_signal(&conn, &devices, &path, &member, &output_tx).await
+                    if let Err(e) = handle_signal(&conn, &devices, &path, &member, &output_tx).await
                     {
                         warn!(signal = %member, path = %path, error = %e, "signal handler");
                     }
