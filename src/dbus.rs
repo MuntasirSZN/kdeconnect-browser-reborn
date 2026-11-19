@@ -3,7 +3,7 @@
 //! Talks to `org.kde.kdeconnect` on the session bus — enumerates devices,
 //! reads properties, listens for state-change signals, and invokes `shareUrl`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -106,41 +106,44 @@ async fn get_prop_raw(conn: &Connection, path: &str, prop: &str) -> Result<Owned
     Ok(value)
 }
 
+/// Call `Properties.GetAll` and return every property as an `OwnedVariant`.
+async fn fetch_all_props(
+    conn: &Connection,
+    path: &str,
+) -> Result<HashMap<String, OwnedVariant>> {
+    let reply = conn
+        .call_method(
+            Some(DEST),
+            path,
+            Some("org.freedesktop.DBus.Properties"),
+            "GetAll",
+            &(DEVICE_IFACE,),
+        )
+        .await
+        .with_context(|| format!("Properties.GetAll({})", path))?;
+
+    reply
+        .body()
+        .deserialize()
+        .context("deserialize property map")
+}
+
+/// Convert an `OwnedVariant` to the JSON value it carries.
+fn variant_to_json(v: &OwnedVariant) -> serde_json::Value {
+    let json = serde_json::to_value(v).unwrap_or(serde_json::Value::Null);
+    json.get("value").cloned().unwrap_or(json)
+}
+
 /// Fetch **all** device properties and build a `Device` struct.
 async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
     let obj_path = format!("{}/devices/{}", BASE_PATH, id);
+    let raw = fetch_all_props(conn, &obj_path).await?;
+    let props: HashMap<String, serde_json::Value> = raw
+        .iter()
+        .map(|(key, value)| (key.clone(), variant_to_json(value)))
+        .collect();
 
-    macro_rules! prop {
-        ($prop:literal) => {
-            get_prop_raw(conn, &obj_path, $prop).await
-        };
-    }
-
-    // String properties
-    let name: String = owned_value_to_json(&prop!("name")?)?;
-    let device_type: String = owned_value_to_json(&prop!("type")?)?;
-    let icon_name: String = owned_value_to_json(&prop!("iconName")?)?;
-    let status_icon_name: String = owned_value_to_json(&prop!("statusIconName")?)?;
-
-    // Bool properties
-    let is_reachable: bool = owned_value_to_json(&prop!("isReachable")?)?;
-    let is_trusted: bool = owned_value_to_json(&prop!("isPaired")?)?;
-
-    // Array-of-strings property – convert to HashMap<String, Empty> for wire compat.
-    let plugin_names: Vec<String> = owned_value_to_json(&prop!("supportedPlugins")?)?;
-    let supported_plugins: HashMap<String, Empty> =
-        plugin_names.into_iter().map(|p| (p, Empty)).collect();
-
-    Ok(Device {
-        id: id.to_owned(),
-        device_type,
-        name,
-        icon_name,
-        status_icon_name,
-        is_reachable,
-        is_trusted,
-        supported_plugins,
-    })
+    Ok(Device::from_props(id, &props))
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +172,20 @@ pub async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
     }
 
     Ok(devices)
+}
+
+/// Serialise the current device cache as the `typeDevices` payload,
+/// keyed by device id.
+pub fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
+    let map: BTreeMap<String, Device> = devices
+        .iter()
+        .filter_map(|shared| {
+            let state = shared.try_lock().ok()?;
+            Some((state.device.id.clone(), state.device.clone()))
+        })
+        .collect();
+
+    serde_json::to_value(map).unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
 }
 
 // ---------------------------------------------------------------------------
@@ -377,4 +394,38 @@ async fn handle_signal(
     let _ = output_tx.send(update);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn device(id: &str, name: &str) -> Device {
+        Device {
+            id: id.into(),
+            device_type: "phone".into(),
+            name: name.into(),
+            icon_name: String::new(),
+            status_icon_name: String::new(),
+            is_reachable: true,
+            is_trusted: true,
+            supported_plugins: HashMap::new(),
+        }
+    }
+
+    fn shared(d: Device) -> SharedDevice {
+        Arc::new(Mutex::new(DeviceState {
+            object_path: format!("/modules/kdeconnect/devices/{}", d.id),
+            device: d,
+        }))
+    }
+
+    #[test]
+    fn snapshot_is_keyed_by_device_id() {
+        let devices = vec![shared(device("a", "Phone")), shared(device("b", "Laptop"))];
+        let json = devices_snapshot(&devices);
+        assert_eq!(json["a"]["name"], "Phone");
+        assert_eq!(json["b"]["name"], "Laptop");
+        assert_eq!(json.as_object().expect("object").len(), 2);
+    }
 }

@@ -199,15 +199,8 @@ async fn handle_message(
 ) -> Result<()> {
     match msg.msg_type {
         MessageType::Devices => {
-            // Build a map of id→Device for the response (sorted keys via BTreeMap).
             let guard = devices.lock().await;
-            let mut map = std::collections::BTreeMap::new();
-            for d in guard.iter() {
-                if let Ok(s) = d.try_lock() {
-                    map.insert(s.device.id.clone(), s.device.clone());
-                }
-            }
-            let data = serde_json::to_value(map)?;
+            let data = dbus::devices_snapshot(guard.as_slice());
             let response = Message::result(MessageType::Devices, data);
             let _ = output_tx.send(response);
         }
