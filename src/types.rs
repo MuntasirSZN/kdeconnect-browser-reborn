@@ -100,3 +100,129 @@ pub struct Device {
     pub is_trusted: bool,
     pub supported_plugins: HashMap<String, Empty>,
 }
+
+impl Device {
+    /// Build a device from a `Properties.GetAll` map.
+    ///
+    /// Every property is optional. Missing or wrongly typed values fall back to
+    /// empty strings, `false`, or an empty plugin map rather than dropping the
+    /// device.
+    pub fn from_props(id: &str, props: &HashMap<String, serde_json::Value>) -> Self {
+        let string = |key: &str| {
+            props
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        };
+        let boolean = |key: &str| {
+            props
+                .get(key)
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        };
+
+        let name = string("name");
+        let supported_plugins = props
+            .get("supportedPlugins")
+            .and_then(serde_json::Value::as_array)
+            .map(|plugins| {
+                plugins
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(|plugin| (plugin.to_owned(), Empty))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Self {
+            id: id.to_owned(),
+            device_type: string("type"),
+            name: if name.is_empty() {
+                "Unknown device".to_owned()
+            } else {
+                name
+            },
+            icon_name: string("iconName"),
+            status_icon_name: string("statusIconName"),
+            is_reachable: boolean("isReachable"),
+            is_trusted: boolean("isPaired") || boolean("isTrusted"),
+            supported_plugins,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn props(value: serde_json::Value) -> HashMap<String, serde_json::Value> {
+        serde_json::from_value(value).expect("object")
+    }
+
+    fn sample() -> HashMap<String, serde_json::Value> {
+        props(serde_json::json!({
+            "name": "Pixel 9",
+            "type": "phone",
+            "iconName": "smartphone",
+            "statusIconName": "smartphoneconnected",
+            "isPaired": true,
+            "isReachable": true,
+            "supportedPlugins": ["kdeconnect_share"]
+        }))
+    }
+
+    #[test]
+    fn is_paired_wins() {
+        let d = Device::from_props("dev1", &sample());
+        assert_eq!(d.id, "dev1");
+        assert_eq!(d.name, "Pixel 9");
+        assert_eq!(d.device_type, "phone");
+        assert_eq!(d.icon_name, "smartphone");
+        assert_eq!(d.status_icon_name, "smartphoneconnected");
+        assert!(d.is_reachable);
+        assert!(d.is_trusted);
+        assert!(d.supported_plugins.contains_key("kdeconnect_share"));
+    }
+
+    #[test]
+    fn is_trusted_is_a_fallback() {
+        let mut p = sample();
+        p.remove("isPaired");
+        p.insert("isTrusted".into(), serde_json::json!(true));
+        assert!(Device::from_props("dev1", &p).is_trusted);
+    }
+
+    #[test]
+    fn unpaired_when_both_false() {
+        let mut p = sample();
+        p.insert("isPaired".into(), serde_json::json!(false));
+        p.insert("isTrusted".into(), serde_json::json!(false));
+        assert!(!Device::from_props("dev1", &p).is_trusted);
+    }
+
+    #[test]
+    fn missing_optional_props_get_defaults() {
+        let d = Device::from_props("dev1", &props(serde_json::json!({})));
+        assert_eq!(d.name, "Unknown device");
+        assert_eq!(d.device_type, "");
+        assert_eq!(d.icon_name, "");
+        assert_eq!(d.status_icon_name, "");
+        assert!(!d.is_reachable);
+        assert!(!d.is_trusted);
+        assert!(d.supported_plugins.is_empty());
+    }
+
+    #[test]
+    fn unexpected_types_do_not_panic() {
+        let p = props(serde_json::json!({
+            "name": 7,
+            "isReachable": "yes",
+            "supportedPlugins": "nope"
+        }));
+        let d = Device::from_props("dev1", &p);
+        assert_eq!(d.name, "Unknown device");
+        assert!(!d.is_reachable);
+        assert!(d.supported_plugins.is_empty());
+    }
+}
