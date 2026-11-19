@@ -22,6 +22,7 @@ use crate::types::{Device, Empty, Message, MessageType};
 pub const DEST: &str = "org.kde.kdeconnect";
 pub const BASE_PATH: &str = "/modules/kdeconnect";
 pub const PLUGIN_SHARE: &str = "kdeconnect_share";
+pub const DAEMON_IFACE: &str = "org.kde.kdeconnect.daemon";
 
 const DEVICE_IFACE: &str = "org.kde.kdeconnect.device";
 
@@ -247,16 +248,15 @@ pub fn check_capability(state: &DeviceState, plugin: &str) -> Result<()> {
 // D-Bus match rules for device signals
 // ---------------------------------------------------------------------------
 
-// Signals emitted by `org.kde.kdeconnect.device` as seen from D-Bus
-// introspection.  Only signals that affect our serialised properties are
-// watched; the rest (pairStateChanged, linksChanged, …) trigger a full
-// property refresh via the default branch.
+// Signals emitted by `org.kde.kdeconnect.device`.  Unlisted signals never
+// reach us: D-Bus only delivers members with a matching AddMatch rule.
 const SIGNAL_MEMBERS: &[&str] = &[
     "reachableChanged",
     "nameChanged",
     "typeChanged",
     "statusIconNameChanged",
     "pluginsChanged",
+    "pairStateChanged",
 ];
 
 /// Register D-Bus match rules for every property-change signal on a device,
@@ -280,17 +280,97 @@ pub async fn add_device_match_rules(conn: &Connection, object_path: &str) -> Res
     Ok(())
 }
 
+/// Register a match rule for every signal from the KDE Connect daemon
+/// (`deviceAdded`, `deviceRemoved`, `deviceVisibilityChanged`, …).
+pub async fn add_daemon_match_rules(conn: &Connection) -> Result<()> {
+    let rule = format!(
+        "type='signal',path='{}',interface='{}'",
+        BASE_PATH, DAEMON_IFACE
+    );
+    conn.call_method(
+        Some("org.freedesktop.DBus"),
+        "/org/freedesktop/DBus",
+        Some("org.freedesktop.DBus"),
+        "AddMatch",
+        &(rule.as_str()),
+    )
+    .await
+    .context("AddMatch(daemon signals)")?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Signal listener
 // ---------------------------------------------------------------------------
 
-/// Spawn a task that listens for device property-change signals and pushes
-/// `DeviceUpdate` messages onto `output_tx` whenever a device changes.
+#[derive(Debug, PartialEq)]
+enum SignalAction {
+    /// Re-read one device's properties.
+    Refresh,
+    /// Re-enumerate every device; the device set itself changed.
+    Resync,
+    /// Not a signal we subscribe to.
+    Ignore,
+}
+
+fn signal_action(iface: Option<&str>, member: Option<&str>) -> SignalAction {
+    if iface == Some(DAEMON_IFACE) {
+        SignalAction::Resync
+    } else if iface == Some(DEVICE_IFACE) {
+        if member == Some("pairStateChanged") {
+            SignalAction::Resync
+        } else {
+            SignalAction::Refresh
+        }
+    } else {
+        SignalAction::Ignore
+    }
+}
+
+/// Re-enumerate devices after a daemon or pairing signal and publish the new
+/// snapshot.  On failure the previous device list is kept and the extension is
+/// told why.
+async fn resync_devices(
+    conn: &Connection,
+    devices: &Arc<Mutex<Vec<SharedDevice>>>,
+    output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+) {
+    match discover_devices(conn).await {
+        Ok(fresh) => {
+            for state in &fresh {
+                let obj_path = state.lock().await.object_path.clone();
+                if let Err(e) = add_device_match_rules(conn, &obj_path).await {
+                    warn!(path = %obj_path, error = %e, "failed to add match rules");
+                }
+            }
+
+            let guard = {
+                let mut guard = devices.lock().await;
+                *guard = fresh;
+                guard
+            };
+            let _ = output_tx.send(Message::result(
+                MessageType::Devices,
+                devices_snapshot(guard.as_slice()),
+            ));
+        }
+        Err(e) => {
+            warn!(error = %e, "device re-discovery failed");
+            let _ = output_tx.send(Message::result(
+                MessageType::Error,
+                serde_json::Value::String(format!("KDE Connect re-discovery failed: {e:#}")),
+            ));
+        }
+    }
+}
+
+/// Spawn a task that listens for daemon and device signals and pushes
+/// `DeviceUpdate` / `Devices` / `Error` messages onto `output_tx`.
 pub fn spawn_signal_listener(
     conn: Connection,
     devices: Arc<Mutex<Vec<SharedDevice>>>,
     output_tx: tokio::sync::mpsc::UnboundedSender<Message>,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut stream = zbus::MessageStream::from(&conn);
         loop {
@@ -306,31 +386,37 @@ pub fn spawn_signal_listener(
                 }
             };
 
-            // We only care about device interface signals
             if msg.message_type() != zbus::message::Type::Signal {
                 continue;
             }
-            let hdr = msg.header();
-            let iface = hdr.interface().map(|i| i.as_str());
-            if iface != Some(DEVICE_IFACE) {
-                continue;
-            }
-            let path_str = match hdr.path() {
-                Some(p) => p.to_string(),
-                None => continue,
-            };
-            let member_str = match hdr.member() {
-                Some(m) => m.to_string(),
-                None => continue,
+
+            // Copy everything we need out of the borrowed header before any
+            // await: no header borrow may cross a suspension point.
+            let (iface, member, path) = {
+                let hdr = msg.header();
+                (
+                    hdr.interface().map(|i| i.to_string()),
+                    hdr.member().map(|m| m.to_string()),
+                    hdr.path().map(|p| p.to_string()),
+                )
             };
 
-            // Map the signal member to the action we need
-            if let Err(e) = handle_signal(&conn, &devices, &path_str, &member_str, &output_tx).await
-            {
-                warn!(signal = %member_str, path = %path_str, error = %e, "signal handler");
+            match signal_action(iface.as_deref(), member.as_deref()) {
+                SignalAction::Ignore => continue,
+                SignalAction::Resync => resync_devices(&conn, &devices, &output_tx).await,
+                SignalAction::Refresh => {
+                    let (Some(path), Some(member)) = (path, member) else {
+                        continue;
+                    };
+                    if let Err(e) =
+                        handle_signal(&conn, &devices, &path, &member, &output_tx).await
+                    {
+                        warn!(signal = %member, path = %path, error = %e, "signal handler");
+                    }
+                }
             }
         }
-    });
+    })
 }
 
 /// Process a single D-Bus signal for a given device path.
@@ -427,5 +513,45 @@ mod tests {
         assert_eq!(json["a"]["name"], "Phone");
         assert_eq!(json["b"]["name"], "Laptop");
         assert_eq!(json.as_object().expect("object").len(), 2);
+    }
+
+    #[test]
+    fn daemon_signals_resync() {
+        assert_eq!(
+            signal_action(Some(DAEMON_IFACE), Some("deviceAdded")),
+            SignalAction::Resync
+        );
+        assert_eq!(
+            signal_action(Some(DAEMON_IFACE), Some("deviceRemoved")),
+            SignalAction::Resync
+        );
+        assert_eq!(
+            signal_action(Some(DAEMON_IFACE), Some("deviceVisibilityChanged")),
+            SignalAction::Resync
+        );
+    }
+
+    #[test]
+    fn pair_state_changes_resync() {
+        assert_eq!(
+            signal_action(Some(DEVICE_IFACE), Some("pairStateChanged")),
+            SignalAction::Resync
+        );
+    }
+
+    #[test]
+    fn ordinary_device_signals_refresh() {
+        assert_eq!(
+            signal_action(Some(DEVICE_IFACE), Some("reachableChanged")),
+            SignalAction::Refresh
+        );
+    }
+
+    #[test]
+    fn unrelated_signals_are_ignored() {
+        assert_eq!(
+            signal_action(Some("org.example.Other"), Some("changed")),
+            SignalAction::Ignore
+        );
     }
 }

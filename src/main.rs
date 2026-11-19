@@ -140,6 +140,9 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
             warn!(path = %obj_path, error = %e, "failed to add match rules");
         }
     }
+    if let Err(e) = dbus::add_daemon_match_rules(&conn).await {
+        warn!(error = %e, "failed to add daemon match rules");
+    }
 
     let devices = Arc::new(Mutex::new(devices));
 
@@ -147,8 +150,8 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     // Outbound: signal handlers & request responses → stdout.
     let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
-    // ---- Spawn signal listener (D-Bus property-change → output_tx) ----
-    dbus::spawn_signal_listener(conn.clone(), devices.clone(), output_tx.clone());
+    // ---- Spawn signal listener (D-Bus signals → output_tx) ----
+    let signal_task = dbus::spawn_signal_listener(conn.clone(), devices.clone(), output_tx.clone());
 
     // ---- Stdout writer task ----
     let mut writer = Writer::stdout();
@@ -181,7 +184,10 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     }
 
     // ---- Cleanup ----
+    // The listener holds a sender clone; stopping it lets the writer drain and
+    // finish instead of waiting forever.
     drop(output_tx);
+    signal_task.abort();
     let _ = stdout_handle.await;
 
     Ok(())
