@@ -7,6 +7,8 @@
  */
 
 import type { Device, Message, ExtensionOptions } from "./generated/types.js";
+import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect.js";
+import type { RetryState } from "./reconnect.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -34,6 +36,14 @@ interface BadgeState {
 
 const badges: Record<string, BadgeState> = {};
 
+/** Firefox sets `port.error` on disconnect instead of `lastError`. */
+interface FirefoxPort {
+  error?: { message?: string };
+}
+
+let retry: RetryState = createRetryState();
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
 // ── Device cache (exported for popup/options) ──────────────────────────
 
 /** Current device snapshot keyed by device ID. */
@@ -48,7 +58,16 @@ export function getOptions(): Readonly<ExtensionOptions> {
 
 // ── Native port ────────────────────────────────────────────────────────
 
-function connect(): void {
+function connect(isUserAction = false): void {
+  if (port) return;
+
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  retry.handshakeAt = null;
+  if (isUserAction) resetRetry(retry);
+
   clearBadge("connected");
   broadcast({ type: "typeClearStatus", data: { key: "connected" } });
 
@@ -56,8 +75,9 @@ function connect(): void {
   const extId = chrome.runtime.id;
   console.info("Connecting to native host", HOSTNAME, "from extension", extId);
 
+  let thisPort: chrome.runtime.Port;
   try {
-    port = chrome.runtime.connectNative(HOSTNAME);
+    thisPort = chrome.runtime.connectNative(HOSTNAME);
   } catch (e) {
     console.warn("connectNative threw:", e instanceof Error ? e.message : String(e));
     setBadge("connected", { text: "!", color: [255, 0, 0, 220] });
@@ -68,30 +88,52 @@ function connect(): void {
     return;
   }
 
-  port.onDisconnect.addListener(onDisconnect);
-  port.onMessage.addListener(onPortMessage);
+  port = thisPort;
+  thisPort.onDisconnect.addListener(() => onDisconnect(thisPort));
+  thisPort.onMessage.addListener((raw) => onPortMessage(raw, thisPort));
 
-  port.postMessage({ type: "typeVersion" });
-  port.postMessage({ type: "typeDevices" });
+  thisPort.postMessage({ type: "typeVersion" });
+  thisPort.postMessage({ type: "typeDevices" });
 }
 
-function onDisconnect(): void {
+function onDisconnect(thisPort: chrome.runtime.Port): void {
+  if (thisPort !== port) return;
   port = null;
+
+  // `lastError` is only valid inside the disconnect callback: read it now.
+  const err = (thisPort as FirefoxPort).error ?? chrome.runtime.lastError;
+
+  clearDevices();
+  void chrome.contextMenus.removeAll();
   setBadge("connected", { text: "!", color: [255, 0, 0, 220] });
   broadcast({
     type: "typeStatus",
-    data: { type: "typeError", key: "connected", error: "could not connect to native host" },
+    data: {
+      type: "typeError",
+      key: "connected",
+      error: err?.message ?? "native host disconnected",
+    },
   });
 
-  const err = chrome.runtime.lastError;
-  console.warn(
-    "Disconnected from native host",
-    JSON.stringify({
-      message: err?.message,
-      hasError: !!err,
-      keys: err ? Object.keys(err) : [],
-    }),
-  );
+  const delay = nextRetryDelay(retry, Date.now());
+  if (delay !== null) {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, delay);
+  }
+}
+
+/** Drop cached devices and tell every view the list is empty. */
+function clearDevices(): void {
+  knownDevices = {};
+  broadcast({ type: "typeDevices", data: {} });
+}
+
+/** Connect on demand; user-initiated calls get a fresh backoff budget. */
+function ensurePort(): chrome.runtime.Port | null {
+  if (!port) connect(true);
+  return port;
 }
 
 /**
@@ -101,13 +143,12 @@ function onDisconnect(): void {
  * `typeVersion`) and share actions must be forwarded. Host replies are pushed
  * back to every view by `onPortMessage` → `broadcast`.
  */
-function onViewMessage(
-  msg: unknown,
-  _sender: chrome.runtime.MessageSender,
-  _sendResponse: (response?: unknown) => void,
-): void {
-  if (!port) connect();
-  port?.postMessage(msg);
+function onViewMessage(msg: unknown): void {
+  const type = (msg as { type?: unknown } | null)?.type;
+  if (type !== "typeVersion" && type !== "typeDevices" && type !== "typeShare") {
+    return;
+  }
+  ensurePort()?.postMessage(msg);
 }
 
 // Must be synchronous; we drop the result.
@@ -115,8 +156,17 @@ chrome.runtime.onMessage.addListener(onViewMessage);
 
 // ── Native message handling ───────────────────────────────────────────
 
-function onPortMessage(raw: unknown): void {
+function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
+  if (thisPort !== port) return;
+
   const msg = raw as Message;
+
+  if (msg.type === "typeVersion" || msg.type === "typeDevices") {
+    markHandshake(retry, Date.now());
+    clearBadge("connected");
+    broadcast({ type: "typeClearStatus", data: { key: "connected" } });
+  }
+
   switch (msg.type) {
     case "typeDeviceUpdate":
       updateDevice(msg.data as Device);
