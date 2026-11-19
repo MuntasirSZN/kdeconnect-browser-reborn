@@ -3,9 +3,4 @@
 /**
  * Discriminated message type matching Go's `messageType` enum.
  */
-export type MessageType =
-  | "typeDevices"
-  | "typeShare"
-  | "typeDeviceUpdate"
-  | "typeError"
-  | "typeVersion";
+export type MessageType = "typeDevices" | "typeShare" | "typeDeviceUpdate" | "typeError" | "typeVersion";

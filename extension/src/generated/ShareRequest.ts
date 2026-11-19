@@ -3,4 +3,4 @@
 /**
  * Share request payload — sent by the browser extension.
  */
-export type ShareRequest = { target: string; url: string };
+export type ShareRequest = { target: string, url: string, };

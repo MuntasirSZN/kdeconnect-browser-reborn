@@ -7,13 +7,4 @@ import type { Empty } from "./Empty";
  * Field names match the Go `Device` struct's JSON tags exactly for wire
  * compatibility with the existing browser extension.
  */
-export type Device = {
-  id: string;
-  type: string;
-  name: string;
-  iconName: string;
-  statusIconName: string;
-  isReachable: boolean;
-  isTrusted: boolean;
-  supportedPlugins: { [key in string]: Empty };
-};
+export type Device = { id: string, type: string, name: string, iconName: string, statusIconName: string, isReachable: boolean, isTrusted: boolean, supportedPlugins: { [key in string]: Empty }, };
