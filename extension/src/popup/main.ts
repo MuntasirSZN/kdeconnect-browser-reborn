@@ -2,7 +2,9 @@
  * Popup view — lists KDE Connect devices with send button.
  */
 
+import { createIcons } from "lucide";
 import type { Device, Message, StatusData } from "../generated/types.js";
+import { DEVICE_ICONS, typeIcon } from "../icons.js";
 
 // ---------------------------------------------------------------------------
 // State
@@ -41,15 +43,24 @@ function renderDevice(device: Device): HTMLElement | null {
   el.dataset.id = device.id;
   el.disabled = disabled;
 
-  const iconName = disabled
-    ? device.iconName || "smartphone-disconnected"
-    : device.statusIconName || "smartphone-connected";
+  const icon = document.createElement("i");
+  icon.dataset.lucide = typeIcon(device.type);
+  icon.className = "device-icon";
+  icon.setAttribute("aria-hidden", "true");
 
-  el.innerHTML = `
-    <img class="device-icon" src="images/${iconName}.svg" alt="" width="24" height="24">
-    <span class="device-name">${escapeHtml(device.name)}</span>
-    <span class="device-send">Send</span>
-  `;
+  const name = document.createElement("span");
+  name.className = "device-name";
+  name.textContent = device.name;
+
+  const status = document.createElement("span");
+  status.className = `device-status ${device.isReachable ? "online" : "offline"}`;
+  status.setAttribute("aria-hidden", "true");
+
+  const send = document.createElement("span");
+  send.className = "device-send";
+  send.textContent = "Send";
+
+  el.append(icon, name, status, send);
 
   el.addEventListener("click", () => {
     void getCurrentTabUrl().then((url) => {
@@ -79,6 +90,8 @@ function writeDevices(devices: Record<string, Device>): void {
     const el = renderDevice(dev);
     if (el) container.appendChild(el);
   }
+
+  createIcons({ icons: DEVICE_ICONS });
 }
 
 // ── Status messages ────────────────────────────────────────────────────
@@ -187,11 +200,3 @@ async function init(): Promise<void> {
 chrome.runtime.onMessage.addListener((msg: unknown) => {
   onMessage(msg as Message);
 });
-
-// ── Helpers ────────────────────────────────────────────────────────────
-
-function escapeHtml(s: string): string {
-  const div = document.createElement("div");
-  div.textContent = s;
-  return div.innerHTML;
-}
