@@ -7,6 +7,8 @@
  */
 
 import type { Device, Message, ExtensionOptions } from "./generated/types.js";
+import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
+import type { MenuStrings } from "./menus.js";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect.js";
 import type { RetryState } from "./reconnect.js";
 
@@ -239,69 +241,35 @@ function applyBadge(): void {
 
 // ── Context menus ─────────────────────────────────────────────────────
 
+const message = (key: string, subs: string[] = [], fallback = ""): string =>
+  chrome.i18n.getMessage(key, subs) || fallback;
+
+const menuStrings: MenuStrings = {
+  root: message("kdeconnect_root", [], "KDE Connect"),
+  open: (name) => message("kdeconnect_open_device", [name], `Open on '${name}'`),
+  call: (name) => message("kdeconnect_call_device", [name], `Call on '${name}'`),
+};
+
 function rebuildContextMenus(): void {
-  if (options.disableContextMenu) {
-    void chrome.contextMenus.removeAll();
-    return;
-  }
-
   chrome.contextMenus.removeAll(() => {
-    const pool =
-      options.defaultOnly && options.defaultDeviceId
-        ? { [options.defaultDeviceId]: knownDevices[options.defaultDeviceId] }
-        : knownDevices;
-
-    const entries = Object.values(pool).filter(Boolean);
-    const hasActive = entries.some((d) => d.isReachable && d.isTrusted);
-
-    if (!hasActive) {
-      setBadge("active", { text: "!", color: [255, 129, 0, 220] });
-      return;
-    }
-
-    if (entries.length === 0) return;
-    clearBadge("active");
-
-    if (entries.length === 1) {
-      const d = entries[0];
-      chrome.contextMenus.create({
-        id: d.id,
-        title: `KDE Connect (${d.name})`,
-        enabled: d.isReachable && d.isTrusted,
-        contexts: ["page", "frame", "link", "image", "video", "audio"],
-      });
-      return;
-    }
-
-    chrome.contextMenus.create({
-      id: "kdeconnectRoot",
-      title: "KDE Connect",
-      contexts: ["page", "frame", "link", "image", "video", "audio"],
-    });
-
-    for (const d of entries) {
-      chrome.contextMenus.create({
-        id: d.id,
-        title: d.name,
-        enabled: d.isReachable && d.isTrusted,
-        parentId: "kdeconnectRoot",
-        contexts: ["page", "frame", "link", "image", "video", "audio"],
-      });
+    for (const entry of buildMenuSpec(knownDevices, options, menuStrings)) {
+      chrome.contextMenus.create(entry, () => void chrome.runtime.lastError);
     }
   });
 }
 
 chrome.contextMenus.onClicked.addListener(
   (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-    if (!port || !info.menuItemId) return;
-    if (info.menuItemId === "kdeconnectRoot") return;
+    const parsed = parseMenuId(String(info.menuItemId));
+    if (!parsed) return;
 
-    port.postMessage({
+    const url = resolveMenuUrl(parsed.action, info, tab?.url);
+    if (!url) return;
+
+    resetRetry(retry);
+    ensurePort()?.postMessage({
       type: "typeShare",
-      data: {
-        target: info.menuItemId,
-        url: info.linkUrl || info.srcUrl || info.frameUrl || info.pageUrl || tab?.url,
-      },
+      data: { target: parsed.deviceId, url },
     });
   },
 );
