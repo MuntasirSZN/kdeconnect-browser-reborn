@@ -8,8 +8,8 @@ import type { Device, Message, StatusData } from "../generated/types.js";
 // State
 // ---------------------------------------------------------------------------
 
-let currentUrl: string | null = null;
 let knownDevices: Record<string, Device> = {};
+let currentUrlPromise: Promise<string | null> | null = null;
 
 // ── Messaging ──────────────────────────────────────────────────────────
 
@@ -19,10 +19,15 @@ function postMessage(msg: Message): void {
   });
 }
 
-function getCurrentTab(): void {
-  void chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
-    if (tabs[0]?.url) currentUrl = tabs[0].url;
-  });
+/**
+ * Resolve the active tab's URL once. Cached so the share path and the
+ * default-device path share a single `tabs.query` call.
+ */
+function getCurrentTabUrl(): Promise<string | null> {
+  currentUrlPromise ??= chrome.tabs
+    .query({ active: true, currentWindow: true })
+    .then((tabs) => tabs[0]?.url ?? null);
+  return currentUrlPromise;
 }
 
 // ── Device list rendering ──────────────────────────────────────────────
@@ -47,10 +52,12 @@ function renderDevice(device: Device): HTMLElement | null {
   `;
 
   el.addEventListener("click", () => {
-    if (currentUrl) {
-      postMessage({ type: "typeShare", data: { target: device.id, url: currentUrl } });
-    }
-    window.close();
+    void getCurrentTabUrl().then((url) => {
+      if (url) {
+        postMessage({ type: "typeShare", data: { target: device.id, url } });
+      }
+      window.close();
+    });
   });
 
   return el;
@@ -149,24 +156,33 @@ function updateDevice(device: Device): void {
 // ── Init ───────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
-  chrome.storage.sync.get({ defaultOnly: false, defaultDeviceId: null }, (items) => {
-    if (items.defaultOnly && items.defaultDeviceId) {
-      getCurrentTab();
-      if (currentUrl) {
-        postMessage({
-          type: "typeShare",
-          data: { target: items.defaultDeviceId, url: currentUrl },
-        });
-      }
-      window.close();
-      return;
-    }
-
-    postMessage({ type: "typeVersion" });
-    postMessage({ type: "typeDevices" });
-    getCurrentTab();
+  init().catch((e: unknown) => {
+    console.warn("popup init failed", e);
   });
 });
+
+async function init(): Promise<void> {
+  const items = (await chrome.storage.sync.get({
+    defaultOnly: false,
+    defaultDeviceId: null,
+  })) as { defaultOnly?: boolean; defaultDeviceId?: string | null };
+
+  if (items.defaultOnly && items.defaultDeviceId) {
+    const url = await getCurrentTabUrl();
+    if (url) {
+      postMessage({
+        type: "typeShare",
+        data: { target: items.defaultDeviceId, url },
+      });
+    }
+    window.close();
+    return;
+  }
+
+  await getCurrentTabUrl();
+  postMessage({ type: "typeVersion" });
+  postMessage({ type: "typeDevices" });
+}
 
 chrome.runtime.onMessage.addListener((msg: unknown) => {
   onMessage(msg as Message);
