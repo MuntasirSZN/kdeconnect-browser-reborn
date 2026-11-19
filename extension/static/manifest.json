@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "KDE Connect",
+  "name": "__MSG_kdeconnect_name__",
   "short_name": "kdeconnect",
-  "description": "Allows sharing pages, videos, and images from your browser to KDE Connect devices.",
+  "description": "__MSG_kdeconnect_description__",
+  "default_locale": "en",
   "version": "0.2.0",
   "homepage_url": "https://github.com/pdf/kdeconnect-chrome-extension",
   "action": {
-    "default_title": "KDE Connect",
+    "default_title": "__MSG_kdeconnect_root__",
     "default_popup": "popup.html",
     "default_icon": {
       "256": "images/kdeconnect-256.png",

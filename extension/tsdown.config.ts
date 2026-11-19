@@ -20,5 +20,6 @@ export default defineConfig({
     { from: "src/popup/style.css", to: "dist/popup" },
     { from: "src/options/style.css", to: "dist/options" },
     { from: "static/images", to: "dist/", flatten: false },
+    { from: "static/_locales", to: "dist/", flatten: false },
   ],
 });
