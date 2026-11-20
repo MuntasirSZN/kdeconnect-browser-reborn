@@ -7,6 +7,8 @@ import type { Device, Message } from "../generated/types.js";
 // ── State ──────────────────────────────────────────────────────────────
 
 let defaultDeviceId: string | null = null;
+let knownDevices: Record<string, Device> = {};
+let saveStatusTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // ── Messaging ──────────────────────────────────────────────────────────
 
@@ -20,16 +22,18 @@ function writeDevices(devices: Record<string, Device>): void {
   const select = document.getElementById("defaultDevice") as HTMLSelectElement | null;
   if (!select) return;
 
+  const selectedDeviceId = select.value || defaultDeviceId;
   select.innerHTML = "";
 
   for (const dev of Object.values(devices).filter(Boolean)) {
     const opt = document.createElement("option");
     opt.value = dev.id;
-    opt.disabled = !(dev.isReachable || dev.isTrusted);
-    opt.selected = defaultDeviceId === dev.id;
+    opt.disabled = !(dev.isReachable && dev.isTrusted);
     opt.textContent = dev.name;
     select.appendChild(opt);
   }
+
+  select.value = selectedDeviceId ?? "";
 }
 
 // ── Toggle helpers ─────────────────────────────────────────────────────
@@ -57,12 +61,25 @@ function saveOptions(): void {
     },
     () => {
       const status = document.getElementById("status");
-      if (status) {
-        status.textContent = "Saved…";
-        setTimeout(() => {
-          status.textContent = "";
-        }, 750);
+      if (!status) return;
+
+      if (saveStatusTimeout !== null) {
+        clearTimeout(saveStatusTimeout);
+        saveStatusTimeout = null;
       }
+
+      const error = chrome.runtime.lastError;
+      if (error) {
+        status.textContent = `Save failed: ${error.message ?? "unknown error"}`;
+        return;
+      }
+
+      defaultDeviceId = newDefaultDeviceId;
+      status.textContent = "Saved…";
+      saveStatusTimeout = setTimeout(() => {
+        status.textContent = "";
+        saveStatusTimeout = null;
+      }, 750);
     },
   );
 }
@@ -97,7 +114,16 @@ function restoreOptions(): void {
 
 function onMessage(msg: Message): void {
   if (msg.type === "typeDevices") {
-    writeDevices((msg.data ?? {}) as Record<string, Device>);
+    knownDevices = (msg.data ?? {}) as Record<string, Device>;
+    writeDevices(knownDevices);
+    return;
+  }
+
+  if (msg.type === "typeDeviceUpdate") {
+    const device = msg.data as Device | undefined;
+    if (!device?.id) return;
+    knownDevices[device.id] = device;
+    writeDevices(knownDevices);
   }
 }
 

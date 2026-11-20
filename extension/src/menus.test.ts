@@ -1,13 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Device, ExtensionOptions } from "./generated/types.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
+import { deviceMenuIcon } from "./icons.js";
 
-const strings = {
-  root: "KDE Connect",
-  open: (name: string) => `Open on '${name}'`,
-  call: (name: string) => `Call on '${name}'`,
-};
-
+const strings = { open: (name: string) => `Open on '${name}'` };
 const options: ExtensionOptions = {
   defaultOnly: false,
   defaultDeviceId: null,
@@ -32,41 +28,47 @@ describe("buildMenuSpec", () => {
   test("empty when there are no devices", () => {
     expect(buildMenuSpec({}, options, strings)).toEqual([]);
   });
-
   test("empty when context menus are disabled", () => {
     expect(
       buildMenuSpec({ dev1: device() }, { ...options, disableContextMenu: true }, strings),
     ).toEqual([]);
   });
-
-  test("one phone gets four top-level entries", () => {
+  test("one device gets flat link and page entries", () => {
     const spec = buildMenuSpec({ dev1: device() }, options, strings);
-    expect(spec.map((e) => e.id)).toEqual([
-      "open-link@dev1",
-      "open-page@dev1",
-      "call@dev1",
-      "open-tab@dev1",
-    ]);
-    expect(spec.every((e) => e.parentId === undefined)).toBe(true);
+    expect(spec.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
+    expect(spec[0].contexts).toEqual(["link", "image", "audio", "video"]);
     expect(spec[0].targetUrlPatterns).toEqual(["http://*/*", "https://*/*"]);
-    expect(spec[2].targetUrlPatterns).toEqual(["tel:*"]);
+    expect(spec[1].contexts).toEqual(["page"]);
   });
-
-  test("one desktop gets no call entry", () => {
-    const spec = buildMenuSpec({ dev1: device({ type: "desktop" }) }, options, strings);
-    expect(spec.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1", "open-tab@dev1"]);
-  });
-
-  test("two devices share a root", () => {
+  test("multiple devices get flat entries", () => {
     const spec = buildMenuSpec(
       { a: device({ id: "a" }), b: device({ id: "b" }) },
       options,
       strings,
     );
-    expect(spec[0].id).toBe("kdeconnect-root");
-    expect(spec.slice(1).every((e) => e.parentId === "kdeconnect-root")).toBe(true);
+    expect(spec.map((e) => e.id)).toEqual([
+      "open-link@a",
+      "open-page@a",
+      "open-link@b",
+      "open-page@b",
+    ]);
   });
-
+  test("tab sharing is Firefox-only and has device icons", () => {
+    const chromeMenus = buildMenuSpec({ dev1: device() }, options, strings);
+    const firefoxMenus = buildMenuSpec({ dev1: device() }, options, strings, true);
+    expect(chromeMenus.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
+    expect(firefoxMenus.map((e) => e.id)).toEqual([
+      "open-link@dev1",
+      "open-page@dev1",
+      "open-tab@dev1",
+    ]);
+    expect(firefoxMenus[0].icons).toEqual({ 16: deviceMenuIcon("phone") });
+    const iconDataUrl = firefoxMenus[0].icons?.[16];
+    expect(iconDataUrl?.startsWith("data:image/svg+xml,")).toBe(true);
+    const svg = decodeURIComponent(iconDataUrl?.split(",")[1] ?? "");
+    expect(svg).toContain('stroke="#4d4d4d"');
+    expect(svg).toContain("<rect");
+  });
   test("excludes unreachable and unpaired devices", () => {
     const spec = buildMenuSpec(
       {
@@ -78,7 +80,6 @@ describe("buildMenuSpec", () => {
     );
     expect(spec).toEqual([]);
   });
-
   test("defaultOnly limits menus to the default device", () => {
     const spec = buildMenuSpec(
       { a: device({ id: "a" }), b: device({ id: "b" }) },
@@ -87,7 +88,11 @@ describe("buildMenuSpec", () => {
     );
     expect(new Set(spec.map((e) => e.id.split("@")[1]))).toEqual(new Set(["b"]));
   });
-
+  test("defaultOnly with no selected device does not expose all devices", () => {
+    expect(
+      buildMenuSpec({ a: device({ id: "a" }) }, { ...options, defaultOnly: true }, strings),
+    ).toEqual([]);
+  });
   test("quotes in device name are preserved", () => {
     const spec = buildMenuSpec({ dev1: device({ name: `Pixel's <b>"test"` }) }, options, strings);
     expect(spec[0].title).toBe(`Open on 'Pixel's <b>"test"'`);
@@ -98,9 +103,9 @@ describe("parseMenuId", () => {
   test("splits action and device id", () => {
     expect(parseMenuId("open-link@a1b2")).toEqual({ action: "open-link", deviceId: "a1b2" });
   });
-
-  test("rejects unknown ids", () => {
+  test("rejects removed or unknown ids", () => {
     expect(parseMenuId("kdeconnect-root")).toBeNull();
+    expect(parseMenuId("call@dev1")).toBeNull();
     expect(parseMenuId("bogus@dev1")).toBeNull();
   });
 });
@@ -116,16 +121,14 @@ describe("resolveMenuUrl", () => {
     expect(resolveMenuUrl("open-page", { pageUrl: "https://example.com/p" })).toBe(
       "https://example.com/p",
     );
-    expect(resolveMenuUrl("open-tab", {}, "https://example.com/t")).toBe("https://example.com/t");
-    expect(resolveMenuUrl("call", { linkUrl: "tel:+15551234" })).toBe("tel:+15551234");
+    expect(resolveMenuUrl("open-tab", { pageUrl: "https://example.com/t" })).toBe(
+      "https://example.com/t",
+    );
   });
-
-  test("rejects non-shareable schemes", () => {
+  test("rejects non-web schemes", () => {
     expect(resolveMenuUrl("open-link", { linkUrl: "javascript:alert(1)" })).toBeNull();
     expect(resolveMenuUrl("open-page", { pageUrl: "file:///etc/passwd" })).toBeNull();
-    expect(resolveMenuUrl("call", { linkUrl: "https://example.com" })).toBeNull();
   });
-
   test("returns null when no URL is present", () => {
     expect(resolveMenuUrl("open-link", {})).toBeNull();
   });

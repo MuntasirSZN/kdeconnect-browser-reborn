@@ -146,7 +146,10 @@ impl Device {
             icon_name: string("iconName"),
             status_icon_name: string("statusIconName"),
             is_reachable: boolean("isReachable"),
-            is_trusted: boolean("isPaired") || boolean("isTrusted"),
+            is_trusted: props
+                .get("isPaired")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or_else(|| boolean("isTrusted")),
             supported_plugins,
         }
     }
@@ -191,6 +194,14 @@ mod tests {
         p.remove("isPaired");
         p.insert("isTrusted".into(), serde_json::json!(true));
         assert!(Device::from_props("dev1", &p).is_trusted);
+    }
+
+    #[test]
+    fn explicit_unpaired_state_overrides_legacy_trusted_value() {
+        let mut p = sample();
+        p.insert("isPaired".into(), serde_json::json!(false));
+        p.insert("isTrusted".into(), serde_json::json!(true));
+        assert!(!Device::from_props("dev1", &p).is_trusted);
     }
 
     #[test]

@@ -245,17 +245,39 @@ const message = (key: string, subs: string[] = [], fallback = ""): string =>
   chrome.i18n.getMessage(key, subs) || fallback;
 
 const menuStrings: MenuStrings = {
-  root: message("kdeconnect_root", [], "KDE Connect"),
   open: (name) => message("kdeconnect_open_device", [name], `Open on '${name}'`),
-  call: (name) => message("kdeconnect_call_device", [name], `Call on '${name}'`),
 };
 
+const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+
+let menuRebuildInProgress = false;
+let menuRebuildQueued = false;
+
 function rebuildContextMenus(): void {
-  chrome.contextMenus.removeAll(() => {
-    for (const entry of buildMenuSpec(knownDevices, options, menuStrings)) {
-      chrome.contextMenus.create(entry, () => void chrome.runtime.lastError);
-    }
-  });
+  menuRebuildQueued = true;
+  if (menuRebuildInProgress) return;
+
+  menuRebuildInProgress = true;
+  const rebuild = (): void => {
+    menuRebuildQueued = false;
+    chrome.contextMenus.removeAll(() => {
+      // Coalesce updates that arrived while removeAll was pending. Running
+      // overlapping removeAll callbacks can otherwise leave stale/empty menus.
+      if (menuRebuildQueued) {
+        rebuild();
+        return;
+      }
+
+      for (const entry of buildMenuSpec(knownDevices, options, menuStrings, IS_FIREFOX)) {
+        chrome.contextMenus.create(entry, () => void chrome.runtime.lastError);
+      }
+
+      menuRebuildInProgress = false;
+      if (menuRebuildQueued) rebuildContextMenus();
+    });
+  };
+
+  rebuild();
 }
 
 chrome.contextMenus.onClicked.addListener(

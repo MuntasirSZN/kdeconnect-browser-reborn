@@ -5,7 +5,7 @@
   "description": "__MSG_kdeconnect_description__",
   "default_locale": "en",
   "version": "0.2.1",
-  "homepage_url": "https://github.com/pdf/kdeconnect-chrome-extension",
+  "homepage_url": "https://github.com/MuntasirSZN/kdeconnect-chrome-extension",
   "action": {
     "default_title": "__MSG_kdeconnect_root__",
     "default_popup": "popup.html",
@@ -36,8 +36,7 @@
     "scripts": ["background.js"],
     "type": "module"
   },
-  "permissions": ["nativeMessaging", "storage", "contextMenus"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": ["nativeMessaging", "storage", "contextMenus", "activeTab"],
   "browser_specific_settings": {
     "gecko": {
       "id": "kde-connect@0xc0dedbad.com",

@@ -1,4 +1,4 @@
-//! KDE Connect Chrome Extension — Native Messaging Host.
+//! KDE Connect Browser Extension — Native Messaging Host.
 //!
 //! Bridges the browser extension with KDE Connect over D-Bus.
 //!
@@ -42,7 +42,7 @@ const CLI_VERSION: &str = "0.1.7";
 
 #[derive(Parser)]
 #[command(
-    name = "kdeconnect-chrome-extension",
+    name = "kdeconnect-browser-extension",
     version = CLI_VERSION,
     disable_version_flag = true,
 )]
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     // --version
     if cli.version {
         println!(
-            "kdeconnect-chrome-extension version {} (protocol {}), built with rustc",
+            "kdeconnect-browser-extension version {} (protocol {}), built with rustc",
             CLI_VERSION, PROTOCOL_VERSION,
         );
         return Ok(());
@@ -173,6 +173,17 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
         while let Some(msg) = output_rx.recv().await {
             if let Err(e) = writer.write(&msg).await {
                 error!(error = %e, "stdout write error");
+
+                // Never silently lose an oversized device snapshot. Send a
+                // small bounded protocol error so the extension can surface it.
+                let fallback = Message::result(
+                    MessageType::Error,
+                    serde_json::Value::String(format!("Unable to send host response: {e}")),
+                );
+                if let Err(fallback_error) = writer.write(&fallback).await {
+                    error!(error = %fallback_error, "failed to send fallback protocol error");
+                    break;
+                }
             }
         }
     });
@@ -180,15 +191,21 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     // ---- Stdin reader (main loop) ----
     let mut reader = Reader::stdin();
     loop {
-        let msg = match reader.read().await {
-            Ok(Some(m)) => m,
-            Ok(None) => {
+        let msg = match read_input_or_output_closed(&mut reader, &output_tx).await {
+            InputEvent::StdoutClosed => {
+                error!("stdout writer exited, shutting down stdin reader");
+                break;
+            }
+            InputEvent::Read(Ok(Some(m))) => m,
+            InputEvent::Read(Ok(None)) => {
                 info!("stdin closed, shutting down");
                 break;
             }
-            Err(e) => {
-                error!(error = %e, "stdin read error, continuing");
-                continue;
+            InputEvent::Read(Err(e)) => {
+                // Framing and pipe errors are fatal: retrying cannot recover
+                // the stream position and may otherwise spin forever.
+                error!(error = %e, "stdin read error, shutting down");
+                break;
             }
         };
 
@@ -205,6 +222,31 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     let _ = stdout_handle.await;
 
     Ok(())
+}
+
+enum InputEvent {
+    StdoutClosed,
+    Read(Result<Option<Message>>),
+}
+
+/// Read the next stdin message, or stop waiting if stdout can no longer
+/// deliver responses. The select also wakes a pending stdin read on shutdown.
+async fn read_input_or_output_closed<R>(
+    reader: &mut Reader<R>,
+    output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+) -> InputEvent
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    if output_tx.is_closed() {
+        return InputEvent::StdoutClosed;
+    }
+
+    tokio::select! {
+        biased;
+        _ = output_tx.closed() => InputEvent::StdoutClosed,
+        result = reader.read() => InputEvent::Read(result),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -230,8 +272,8 @@ async fn handle_message(
 ) -> Result<()> {
     match msg.msg_type {
         MessageType::Devices => {
-            let guard = devices.lock().await;
-            let data = dbus::devices_snapshot(guard.as_slice());
+            let current_devices = devices.lock().await.clone();
+            let data = dbus::devices_snapshot(&current_devices).await;
             let response = Message::result(MessageType::Devices, data);
             let _ = output_tx.send(response);
         }
@@ -278,18 +320,21 @@ async fn handle_share(
         .and_then(|d| serde_json::from_value(d.clone()).ok())
         .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
 
-    // Find the device by ID
-    let device_arc = {
-        let guard = devices.lock().await;
-        guard
-            .iter()
-            .find(|d| {
-                d.try_lock()
-                    .map(|s| s.device.id == share.target)
-                    .unwrap_or(false)
-            })
-            .cloned()
-    };
+    if !is_shareable_url(&share.url) {
+        anyhow::bail!("unsupported URL scheme; only http and https URLs can be shared");
+    }
+
+    // Clone the list before awaiting individual device locks. A brief lock
+    // contention must not make a valid target appear to be an unknown ID.
+    let candidates = devices.lock().await.clone();
+    let mut device_arc = None;
+    for candidate in candidates {
+        let matches = candidate.lock().await.device.id == share.target;
+        if matches {
+            device_arc = Some(candidate);
+            break;
+        }
+    }
 
     match device_arc {
         Some(d) => {
@@ -303,21 +348,55 @@ async fn handle_share(
     Ok(())
 }
 
+fn is_shareable_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn only_supported_url_schemes_are_shareable() {
+        assert!(is_shareable_url("https://example.com/page"));
+        assert!(is_shareable_url("http://example.com"));
+        assert!(!is_shareable_url("tel:+15551234"));
+        assert!(!is_shareable_url("javascript:alert(1)"));
+        assert!(!is_shareable_url("file:///etc/passwd"));
+        assert!(!is_shareable_url("chrome://settings"));
+    }
+
+    #[tokio::test]
+    async fn stdin_reader_stops_when_stdout_receiver_is_dropped() {
+        let (_stdin_tx, stdin_rx) = tokio::io::duplex(64);
+        let mut reader = Reader::new(stdin_rx);
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+        let reader_task =
+            tokio::spawn(async move { read_input_or_output_closed(&mut reader, &output_tx).await });
+
+        // Let the reader reach its pending stdin read before closing stdout.
+        tokio::task::yield_now().await;
+        drop(output_rx);
+
+        assert!(matches!(
+            reader_task.await.expect("reader task"),
+            InputEvent::StdoutClosed
+        ));
+    }
+
+    #[test]
     fn browser_arguments_are_accepted() {
         let cli = Cli::try_parse_from([
-            "kdeconnect-chrome-extension",
+            "kdeconnect-browser-extension",
             "/home/user/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json",
             "kde-connect@0xc0dedbad.com",
         ])
         .expect("Firefox argv");
         assert!(!cli.install && !cli.dev && !cli.version && !cli.devices);
 
-        Cli::try_parse_from(["kdeconnect-chrome-extension", "chrome-extension://abcdef/"])
+        Cli::try_parse_from(["kdeconnect-browser-extension", "chrome-extension://abcdef/"])
             .expect("Chrome argv");
     }
 }

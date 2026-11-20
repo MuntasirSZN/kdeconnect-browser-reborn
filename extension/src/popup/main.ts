@@ -117,7 +117,7 @@ function addStatus(msg: Message): void {
     case "typeVersion": {
       el.textContent = `Host upgrade v${String(data.update)} available (current: v${String(data.current)}). `;
       const link = document.createElement("a");
-      link.href = "https://github.com/pdf/kdeconnect-chrome-extension#upgrading";
+      link.href = "https://github.com/MuntasirSZN/kdeconnect-chrome-extension#upgrading";
       link.target = "_blank";
       link.textContent = "Upgrade instructions";
       el.appendChild(link);
