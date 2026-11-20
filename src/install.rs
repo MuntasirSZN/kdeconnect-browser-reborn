@@ -3,7 +3,7 @@
 //! Copies the running binary to the target location and writes a native
 //! messaging manifest JSON file for each selected browser.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use inquire::{MultiSelect, Text};
@@ -226,7 +226,37 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
 // Install logic
 // ---------------------------------------------------------------------------
 
-/// Copy the running binary and write the manifest for one browser.
+/// Architecture tag for daemon binaries (e.g. `x86_64`, `aarch64`).
+///
+/// Used to pick the right binary from a multi-architecture release bundle.
+fn arch_tag() -> &'static str {
+    match std::env::consts::ARCH {
+        "aarch64" => "aarch64",
+        "x86_64" => "x86_64",
+        other => other,
+    }
+}
+
+/// Pick the daemon binary to install: the architecture-tagged sibling
+/// (`<exe>-<arch>`) when the running executable lives in a multi-architecture
+/// bundle, otherwise the running executable itself.
+fn pick_daemon_binary(exe: &Path) -> PathBuf {
+    if let Some(stem) = exe.file_stem() {
+        let tagged = exe.with_file_name(format!("{}-{}", stem.to_string_lossy(), arch_tag()));
+        if tagged.is_file() {
+            return tagged;
+        }
+    }
+    exe.to_path_buf()
+}
+
+/// Select the daemon binary for the current platform.
+fn select_daemon_binary() -> Result<PathBuf> {
+    let exe = std::env::current_exe().context("get current executable path")?;
+    Ok(pick_daemon_binary(&exe))
+}
+
+/// Copy the selected binary and write the manifest for one browser.
 fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()> {
     let dir = PathBuf::from(target_dir);
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
@@ -237,7 +267,7 @@ fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()>
     let daemon_path = dir.join(APP_NAME);
 
     // Copy self
-    let exe = std::env::current_exe().context("get current executable path")?;
+    let exe = select_daemon_binary().context("select host binary")?;
     std::fs::copy(&exe, &daemon_path)
         .with_context(|| format!("copy {} -> {}", exe.display(), daemon_path.display()))?;
     // On unix, restore executable bit (copy may drop it)
@@ -389,7 +419,50 @@ mod tests {
     fn chrome_extension_id_validation_matches_browser_format() {
         assert!(is_valid_chrome_extension_id(DEFAULT_EXTENSION_ID));
         assert!(is_valid_chrome_extension_id("a".repeat(32).as_str()));
+        // Every letter a-p is accepted by the documented "a-p" range.
+        assert!(is_valid_chrome_extension_id("g".repeat(32).as_str()));
         assert!(!is_valid_chrome_extension_id("not-an-extension-id"));
-        assert!(!is_valid_chrome_extension_id("g".repeat(32).as_str()));
+        assert!(!is_valid_chrome_extension_id("q".repeat(32).as_str()));
+    }
+
+    #[test]
+    fn arch_tag_matches_current_platform() {
+        match std::env::consts::ARCH {
+            "aarch64" => assert_eq!(arch_tag(), "aarch64"),
+            "x86_64" => assert_eq!(arch_tag(), "x86_64"),
+            other => assert_eq!(arch_tag(), other),
+        }
+    }
+
+    /// Create a `<dir>/kdeconnect-browser-extension` test binary.
+    fn fake_exe(dir: &Path, with_tagged_sibling: bool) -> PathBuf {
+        let exe = dir.join("kdeconnect-browser-extension");
+        std::fs::write(&exe, b"#!/bin/sh\n").expect("write test exe");
+        if with_tagged_sibling {
+            let tagged = dir.join(format!("kdeconnect-browser-extension-{}", arch_tag()));
+            std::fs::write(&tagged, b"#!/bin/sh\n").expect("write tagged sibling");
+        }
+        exe
+    }
+
+    #[test]
+    fn pick_daemon_binary_prefers_arch_tagged_sibling() {
+        let dir =
+            std::env::temp_dir().join(format!("kdeconnect-install-tag-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let exe = fake_exe(&dir, true);
+        let tagged = dir.join(format!("kdeconnect-browser-extension-{}", arch_tag()));
+        assert_eq!(pick_daemon_binary(&exe), tagged);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn pick_daemon_binary_falls_back_to_running_exe() {
+        let dir =
+            std::env::temp_dir().join(format!("kdeconnect-install-notag-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let exe = fake_exe(&dir, false);
+        assert_eq!(pick_daemon_binary(&exe), exe);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
