@@ -18,7 +18,7 @@ extensions.
    command:
 
    ```bash
-   ./kdeconnect-chrome-extension --install
+   ./kdeconnect-browser-extension --install
    ```
 
    It will prompt you to select the browser you wish to install for, use
@@ -28,14 +28,14 @@ extensions.
    If you wish to install as a developer (custom extension ID), add `--dev`:
 
    ```bash
-   ./kdeconnect-chrome-extension --install --dev
+   ./kdeconnect-browser-extension --install --dev
    ```
 
    If you wish to deploy system-wide, rather than for the current user, simply
    run as root:
 
    ```bash
-   sudo ./kdeconnect-chrome-extension --install
+   sudo ./kdeconnect-browser-extension --install
    ```
 
 4. Start your browser.
@@ -44,6 +44,18 @@ extensions.
 
 Currently only Linux x86-64 builds are produced; however the code is portable
 and should run anywhere the Rust toolchain supports.
+
+## Upgrading
+
+The native host and browser extension are released separately. To update the
+native host, download the new release archive, close the browser, and run the
+new `kdeconnect-browser-extension --install` binary again. The installer
+replaces the host binary and manifest for the selected browser. Restart the
+browser after installation.
+
+For a source build, run `cargo build --release`, then install the resulting
+`target/release/kdeconnect-browser-extension` binary with
+`./target/release/kdeconnect-browser-extension --install`.
 
 ## Building from source
 
@@ -66,7 +78,7 @@ You will find the binary at `target/release/kdeconnect-browser-extension`.
 ## Usage
 
 ```
-Usage: kdeconnect-chrome-extension [OPTIONS]
+Usage: kdeconnect-browser-extension [OPTIONS]
 
 Options:
       --install    Perform interactive install into browser native messaging hosts dirs
