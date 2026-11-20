@@ -4,7 +4,7 @@
   "short_name": "kdeconnect",
   "description": "__MSG_kdeconnect_description__",
   "default_locale": "en",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "homepage_url": "https://github.com/pdf/kdeconnect-chrome-extension",
   "action": {
     "default_title": "__MSG_kdeconnect_root__",

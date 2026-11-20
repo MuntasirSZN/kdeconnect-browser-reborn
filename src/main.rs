@@ -34,7 +34,7 @@ use types::{Message, MessageType, ShareRequest};
 // ---------------------------------------------------------------------------
 
 const PROTOCOL_VERSION: &str = "0.1.3";
-const CLI_VERSION: &str = "0.1.6";
+const CLI_VERSION: &str = "0.1.7";
 
 // ---------------------------------------------------------------------------
 // CLI
