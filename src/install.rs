@@ -204,7 +204,10 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
             .extension_id
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("Chrome native host requires an extension ID"))?;
-        (Some(vec![format!("chrome-extension://{extension_id}/")]), None)
+        (
+            Some(vec![format!("chrome-extension://{extension_id}/")]),
+            None,
+        )
     };
 
     let manifest = NativeManifest {

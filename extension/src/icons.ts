@@ -23,7 +23,6 @@ export function typeIcon(type: string): IconName {
   }
 }
 
-
 const DEVICE_ICON_KEYS: Record<IconName, keyof typeof DEVICE_ICONS> = {
   smartphone: "Smartphone",
   tablet: "Tablet",
@@ -36,10 +35,7 @@ const DEVICE_ICON_KEYS: Record<IconName, keyof typeof DEVICE_ICONS> = {
 const menuIconCache = new Map<IconName, string>();
 
 function escapeSvgAttribute(value: string | number): string {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;");
+  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }
 
 /** Render the existing Lucide icon node as a Firefox context-menu data URL. */

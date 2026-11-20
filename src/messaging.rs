@@ -5,9 +5,9 @@
 //!
 //! This module provides async `Reader` and `Writer` over tokio's stdio handles.
 
-use std::io::{self, Write as IoWrite};
 use anyhow::{Context, Result};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
+use std::io::{self, Write as IoWrite};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::warn;
 
@@ -57,9 +57,7 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
         let mut output = BoundedBuffer::default();
         let serialized = serde_json::to_writer(&mut output, msg);
         if output.exceeded {
-            anyhow::bail!(
-                "native message is too large (maximum {MAX_MESSAGE_SIZE} bytes)"
-            );
+            anyhow::bail!("native message is too large (maximum {MAX_MESSAGE_SIZE} bytes)");
         }
         serialized.context("serialize message")?;
 
@@ -177,17 +175,11 @@ mod tests {
             Poll::Ready(Ok(bytes.len()))
         }
 
-        fn poll_flush(
-            self: Pin<&mut Self>,
-            _cx: &mut TaskContext<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
 
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            _cx: &mut TaskContext<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
     }
@@ -199,12 +191,18 @@ mod tests {
             serde_json::Value::String("x".repeat(MAX_MESSAGE_SIZE as usize)),
         );
         let mut writer = Writer::new(RecordingWriter::default());
-        let error = writer.write(&message).await.expect_err("oversized output must fail");
+        let error = writer
+            .write(&message)
+            .await
+            .expect_err("oversized output must fail");
         assert!(
             error.to_string().contains("too large"),
             "unexpected error: {error}"
         );
-        assert!(writer.inner.0.is_empty(), "writer emitted bytes before rejection");
+        assert!(
+            writer.inner.0.is_empty(),
+            "writer emitted bytes before rejection"
+        );
     }
 
     #[tokio::test]

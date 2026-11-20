@@ -25,7 +25,12 @@ export interface MenuClickInfo {
 const HTTP_PATTERNS = ["http://*/*", "https://*/*"];
 const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "open-tab"];
 
-function entryFor(action: MenuAction, device: Device, title: string, isFirefox: boolean): MenuEntry {
+function entryFor(
+  action: MenuAction,
+  device: Device,
+  title: string,
+  isFirefox: boolean,
+): MenuEntry {
   const id = `${action}@${device.id}`;
   const icons = isFirefox ? { 16: deviceMenuIcon(device.type) } : undefined;
   const common = icons ? { icons } : {};

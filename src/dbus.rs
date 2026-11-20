@@ -522,7 +522,10 @@ mod tests {
         });
         started_rx.await.expect("snapshot task started");
         tokio::task::yield_now().await;
-        assert!(!task.is_finished(), "snapshot should wait for the held device lock");
+        assert!(
+            !task.is_finished(),
+            "snapshot should wait for the held device lock"
+        );
 
         drop(guard);
         let json = task.await.expect("snapshot task");
