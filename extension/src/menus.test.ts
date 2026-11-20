@@ -49,7 +49,7 @@ describe("buildMenuSpec", () => {
     ]);
     expect(spec.every((e) => e.parentId === undefined)).toBe(true);
     expect(spec[0].targetUrlPatterns).toEqual(["http://*/*", "https://*/*"]);
-    expect(spec[2].targetUrlPatterns).toEqual(["tel:*"]);
+    expect(spec[2].targetUrlPatterns).toBeUndefined();
   });
 
   test("one desktop gets no call entry", () => {

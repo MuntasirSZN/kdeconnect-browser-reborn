@@ -11,7 +11,11 @@ export default defineConfig({
   target: "es2022",
   platform: "browser",
   // Extensions cannot resolve npm bare specifiers at runtime.
-  deps: { alwaysBundle: ["lucide"] },
+  deps: {
+    alwaysBundle: ["lucide"],
+    // Fail the build if any npm bare import leaks into extension output.
+    onlyImport: [],
+  },
   clean: true,
   sourcemap: true,
   dts: false,

@@ -63,8 +63,9 @@ function entryFor(
         id,
         ...common,
         title: strings.call(device.name),
+        // "tel:" is not a supported match-pattern scheme. Filter it in
+        // resolveMenuUrl() when the item is clicked instead.
         contexts: ["link"],
-        targetUrlPatterns: ["tel:*"],
       };
     case "open-tab":
       return {
