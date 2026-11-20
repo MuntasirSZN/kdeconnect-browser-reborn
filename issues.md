@@ -55,14 +55,18 @@ cargo build --release --target aarch64-unknown-linux-gnu
 
 Also needs the install script to detect the architecture and pick the right binary.
 
-**Action:** Add cross-compile target + install detection.
+**Action:** FIXED — `arch_tag()` + `pick_daemon_binary()` in `src/install.rs`
+detect the current architecture and prefer an arch-tagged sibling
+(`kdeconnect-browser-extension-<arch>`) when present; README documents
+cross-architecture builds.
 
 ### #45 — Build for Pinephone
 *No labels* · Reported 2021-11 by @gemlog
 
-Same as #48 — Pinephone is aarch64. No additional work beyond aarch64 support.
+Same as #48 — Pinephone is aarch64.
 
-**Action:** Resolve together with #48.
+**Action:** FIXED with #48 — aarch64 architecture support now exists in the
+installer and README; no additional work needed.
 
 ---
 
@@ -75,8 +79,12 @@ Extension works on Brave but shows "no devices found" on Firefox. Likely install
 Firefox native messaging manifest may be in the wrong location or the extension ID differs.
 Our Rust installer (`--install`) handles both Chrome and Firefox manifest locations.
 
-**Action:** Verify `--install` places Firefox manifest correctly. Firefox requires native messaging
-manifests in `~/.mozilla/native-messaging-hosts/`. Check that our installer targets this path.
+**Action:** VERIFIED — the installed Firefox manifest
+(`~/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json`)
+is correctly placed, named after `name: "com.0xc0dedbad.kdeconnect_chrome"`,
+and uses `allowed_extensions: ["kde-connect@0xc0dedbad.com"]`, which matches
+the extension's `browser_specific_settings.gecko.id`. Close as already
+fixed/working with current builds.
 
 ### #35 — Tried building for macOS, Error executing binary
 **Bug** · Reported 2020-05 by @firefinchdev
@@ -97,7 +105,13 @@ KDE Connect would need to be running on macOS to provide a session bus.
 Valent (GNOME-native KDE Connect replacement) uses the same D-Bus API as KDE Connect —
 `org.kde.kdeconnect`. The Rust host should work out of the box. Needs verification.
 
-**Action:** Test the Rust host against Valent. Close if compatible.
+**Action:** VERIFICATION — the Rust host speaks the shared
+`org.kde.kdeconnect` D-Bus surface: daemon interface `devices()` on
+`/modules/kdeconnect`, device interface, `Properties.GetAll`, and
+`shareUrl` on the `/share` node — confirmed against KDE Connect via
+`gdbus introspect`. Valent implements the same API by design; a live
+Valent engine test is still pending (Valent is not installed in this
+environment).
 
 ### #14 — Send image data rather than image link
 **Enhancement** · Reported 2017-11 by @pdf
@@ -147,16 +161,17 @@ These issues depend on platform D-Bus availability or were previously labeled wo
 | #56 D-Bus interface | Already fixed by Rust migration — `isPaired` mapped to `is_trusted` |
 | #62 Chrome deactivation | MV3 migration resolves MV2 deprecation |
 | #57 Not working | Fixed by #56 fix |
-| #60 Firefox not working | Added `browser_specific_settings.gecko` to manifest; extension ID matches native messaging manifest |
+| #60 Firefox not working | Added `browser_specific_settings.gecko` to manifest; extension ID matches native messaging manifest (verified: installed Firefox manifest + Gecko ID correct) |
+| #48 aarch64 support | Added `arch_tag()` + `pick_daemon_binary()` — installer prefers arch-tagged sibling (`<exe>-x86_64`/`-aarch64`); README cross-arch build note |
+| #45 Pinephone build | Same fix as #48 — installer detects architecture |
 | TS type errors | Created barrel `types.ts`, added `@types/chrome`, fixed `Message` optional fields |
 | Unused variable | Removed unused `prev` in `updateDevice()` |
+| Broken `is_valid_chrome_extension_id` test | `chrome_extension_id_validation_matches_browser_format` asserted `!is_valid("g"*32)`, contradicting the `a-p` range — fixed to test `q` instead |
 
 ### 🔜 Remaining
 
 | Order | Issue | Fix | Difficulty |
 |-------|-------|-----|------------|
-| 5 | #48 aarch64 | Add rustup target + install script detection | Easy |
-| 6 | #45 Pinephone | Same as #48 | Easy |
-| 7 | #59 Valent | Test once built | Easy |
+| 7 | #59 Valent | Host verified against shared `org.kde.kdeconnect` D-Bus surface; live Valent engine test pending | Easy |
 | 8 | #14 Image data | Enhancement — scope TBD | Hard |
 | 9 | Platform ports (#35, #39, #4) | Requires D-Bus on target OS | Hard |
