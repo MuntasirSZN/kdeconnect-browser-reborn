@@ -191,13 +191,17 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     // ---- Stdin reader (main loop) ----
     let mut reader = Reader::stdin();
     loop {
-        let msg = match reader.read().await {
-            Ok(Some(m)) => m,
-            Ok(None) => {
+        let msg = match read_input_or_output_closed(&mut reader, &output_tx).await {
+            InputEvent::StdoutClosed => {
+                error!("stdout writer exited, shutting down stdin reader");
+                break;
+            }
+            InputEvent::Read(Ok(Some(m))) => m,
+            InputEvent::Read(Ok(None)) => {
                 info!("stdin closed, shutting down");
                 break;
             }
-            Err(e) => {
+            InputEvent::Read(Err(e)) => {
                 // Framing and pipe errors are fatal: retrying cannot recover
                 // the stream position and may otherwise spin forever.
                 error!(error = %e, "stdin read error, shutting down");
@@ -218,6 +222,31 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     let _ = stdout_handle.await;
 
     Ok(())
+}
+
+enum InputEvent {
+    StdoutClosed,
+    Read(Result<Option<Message>>),
+}
+
+/// Read the next stdin message, or stop waiting if stdout can no longer
+/// deliver responses. The select also wakes a pending stdin read on shutdown.
+async fn read_input_or_output_closed<R>(
+    reader: &mut Reader<R>,
+    output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
+) -> InputEvent
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    if output_tx.is_closed() {
+        return InputEvent::StdoutClosed;
+    }
+
+    tokio::select! {
+        biased;
+        _ = output_tx.closed() => InputEvent::StdoutClosed,
+        result = reader.read() => InputEvent::Read(result),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,6 +365,26 @@ mod tests {
         assert!(!is_shareable_url("javascript:alert(1)"));
         assert!(!is_shareable_url("file:///etc/passwd"));
         assert!(!is_shareable_url("chrome://settings"));
+    }
+
+    #[tokio::test]
+    async fn stdin_reader_stops_when_stdout_receiver_is_dropped() {
+        let (_stdin_tx, stdin_rx) = tokio::io::duplex(64);
+        let mut reader = Reader::new(stdin_rx);
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+        let reader_task = tokio::spawn(async move {
+            read_input_or_output_closed(&mut reader, &output_tx).await
+        });
+
+        // Let the reader reach its pending stdin read before closing stdout.
+        tokio::task::yield_now().await;
+        drop(output_rx);
+
+        assert!(matches!(
+            reader_task.await.expect("reader task"),
+            InputEvent::StdoutClosed
+        ));
     }
 
     #[test]
