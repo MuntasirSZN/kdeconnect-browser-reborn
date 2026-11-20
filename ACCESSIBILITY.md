@@ -5,7 +5,7 @@ _A KDE Connect Browser Reborn project._ Based on the
 
 ## What is this project?
 
-[ KDE Connect Browser Reborn](https://github.com/MuntasirSZN/kdeconnect-chrome-extension)
+[ KDE Connect Browser Reborn](https://github.com/MuntasirSZN/kdeconnect-browser-reborn)
 is a Firefox and Chromium-based extension that sends pages and content from
 your browser to connected KDE Connect devices — via the browser action
 popup, or the right-click context menu. It supports both Firefox/Zen and
@@ -42,7 +42,7 @@ What we plan to do next:
 If you encounter an accessibility issue in this project, or have suggestions
 for improvement, please open an issue or contact us:
 
-- GitHub issues: https://github.com/MuntasirSZN/kdeconnect-chrome-extension/issues
+- GitHub issues: https://github.com/MuntasirSZN/kdeconnect-browser-reborn/issues
 - Email: muntasir.joypurhat@gmail.com
 
 ## Disclaimer

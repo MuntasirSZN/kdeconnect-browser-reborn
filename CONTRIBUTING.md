@@ -13,7 +13,7 @@ This project has two components that must both stay green:
 - **Extension bugs** — open a GitHub issue with the browser, version
   (see `extension/static/manifest.json`), and steps to reproduce. Please
   include the `--version` output of the installed host if relevant.
-- **Native host bugs** — include output of `kdeconnect-chrome-extension --devices`.
+- **Native host bugs** — include output of `kdeconnect-browser-reborn --devices`.
 - **Security** — see [SECURITY.md](SECURITY.md).
 
 ## Development setup
@@ -27,7 +27,7 @@ cargo build --release          # or cargo build for local iteration
 Install/reinstall the host:
 
 ```bash
-./target/release/kdeconnect-chrome-extension --install
+./target/release/kdeconnect-browser-reborn --install
 ```
 
 ### Extension

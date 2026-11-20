@@ -14,7 +14,7 @@ This extension relies on a Native Messaging Host to communicate with KDE Connect
 devices. As a result, installation is a little more involved than stand-alone
 extensions.
 
-1. Download the [latest release](https://github.com/MuntasirSZN/kdeconnect-chrome-extension/releases/latest) of the host application.
+1. Download the [latest release](https://github.com/MuntasirSZN/kdeconnect-browser-reborn/releases/latest) of the host application.
 2. Close your browser.
 3. Extract the host application anywhere, open a terminal and run the install
    command:
@@ -65,8 +65,8 @@ For a source build, run `cargo build --release`, then install the resulting
 2. Clone the repository:
 
    ```bash
-   git clone https://github.com/MuntasirSZN/kdeconnect-chrome-extension.git
-   cd kdeconnect-chrome-extension
+   git clone https://github.com/MuntasirSZN/kdeconnect-browser-reborn.git
+   cd kdeconnect-browser-reborn
    ```
 
 3. Build:
