@@ -3,8 +3,10 @@
 A Firefox and Chromium-based browser extension to send pages and content from
 your browser to connected KDE Connect devices, via browser action or context menu.
 
-__Update__: As of v0.2.0 the native messaging host has been rewritten in Rust
-for improved reliability, performance, and maintainability.
+Originally created by [@pdf](https://github.com/pdf). It was unmaintained, so it was forked
+and maintained by [@MuntasirSZN](https://github.com/MuntasirSZN). It was rewritten in Rust, made it
+very close to KDE Connect part of plasma-browser-integration, added UX improvements, and fixed some long standing
+issues as found in the original repo.
 
 ## Installation
 
