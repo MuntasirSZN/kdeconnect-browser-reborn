@@ -373,9 +373,8 @@ mod tests {
         let mut reader = Reader::new(stdin_rx);
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
-        let reader_task = tokio::spawn(async move {
-            read_input_or_output_closed(&mut reader, &output_tx).await
-        });
+        let reader_task =
+            tokio::spawn(async move { read_input_or_output_closed(&mut reader, &output_tx).await });
 
         // Let the reader reach its pending stdin read before closing stdout.
         tokio::task::yield_now().await;
