@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Device, ExtensionOptions } from "./generated/types.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
+import { deviceMenuIcon } from "./icons.js";
 
 const strings = { open: (name: string) => `Open on '${name}'` };
 const options: ExtensionOptions = {
@@ -37,7 +38,12 @@ describe("buildMenuSpec", () => {
     const firefoxMenus = buildMenuSpec({ dev1: device() }, options, strings, true);
     expect(chromeMenus.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
     expect(firefoxMenus.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1", "open-tab@dev1"]);
-    expect(firefoxMenus[0].icons).toEqual({ 16: "images/devices/phone.svg" });
+    expect(firefoxMenus[0].icons).toEqual({ 16: deviceMenuIcon("phone") });
+    const iconDataUrl = firefoxMenus[0].icons?.[16];
+    expect(iconDataUrl?.startsWith("data:image/svg+xml,")).toBe(true);
+    const svg = decodeURIComponent(iconDataUrl?.split(",")[1] ?? "");
+    expect(svg).toContain('stroke="#4d4d4d"');
+    expect(svg).toContain("<rect");
   });
   test("excludes unreachable and unpaired devices", () => {
     const spec = buildMenuSpec({

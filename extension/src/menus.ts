@@ -1,4 +1,5 @@
 import type { Device, ExtensionOptions } from "./generated/types.js";
+import { deviceMenuIcon } from "./icons.js";
 
 export type MenuAction = "open-link" | "open-page" | "open-tab";
 
@@ -24,20 +25,9 @@ export interface MenuClickInfo {
 const HTTP_PATTERNS = ["http://*/*", "https://*/*"];
 const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "open-tab"];
 
-const DEVICE_MENU_ICONS: Record<string, string> = {
-  phone: "images/devices/phone.svg",
-  smartphone: "images/devices/phone.svg",
-  tablet: "images/devices/tablet.svg",
-  desktop: "images/devices/computer.svg",
-  tv: "images/devices/computer.svg",
-  laptop: "images/devices/laptop.svg",
-};
-
 function entryFor(action: MenuAction, device: Device, title: string, isFirefox: boolean): MenuEntry {
   const id = `${action}@${device.id}`;
-  const icons = isFirefox
-    ? { 16: DEVICE_MENU_ICONS[device.type] ?? DEVICE_MENU_ICONS.desktop }
-    : undefined;
+  const icons = isFirefox ? { 16: deviceMenuIcon(device.type) } : undefined;
   const common = icons ? { icons } : {};
 
   switch (action) {
