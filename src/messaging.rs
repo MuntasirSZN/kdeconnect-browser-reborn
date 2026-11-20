@@ -10,6 +10,9 @@ use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::warn;
 
+/// Bound allocations and output frames to 1 MiB.
+const MAX_MESSAGE_SIZE: u32 = 1024 * 1024;
+
 use crate::types::Message;
 
 // ---------------------------------------------------------------------------
@@ -29,7 +32,12 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
     /// Encode and flush a message.
     pub async fn write(&mut self, msg: &Message) -> Result<()> {
         let buf = serde_json::to_vec(msg).context("serialize message")?;
-        let len = buf.len() as u32;
+        let len = u32::try_from(buf.len()).context("native message length exceeds u32")?;
+        if len > MAX_MESSAGE_SIZE {
+            anyhow::bail!(
+                "native message is too large: {len} bytes (maximum {MAX_MESSAGE_SIZE})"
+            );
+        }
 
         let mut header = Vec::with_capacity(4);
         WriteBytesExt::write_u32::<NativeEndian>(&mut header, len)?;
@@ -72,15 +80,26 @@ impl<R: AsyncRead + Unpin> Reader<R> {
         loop {
             // Read 4-byte length prefix (native endian)
             let mut len_buf = [0u8; 4];
-            match self.inner.read_exact(&mut len_buf).await {
-                Ok(_n) => {}
-                Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(None),
+            // EOF is clean only before the first byte of a new frame. A short
+            // header after that is a truncated native-messaging frame.
+            match self.inner.read(&mut len_buf[..1]).await {
+                Ok(0) => return Ok(None),
+                Ok(_) => {}
                 Err(e) => return Err(e).context("read length prefix"),
             }
+            self.inner
+                .read_exact(&mut len_buf[1..])
+                .await
+                .context("read remaining length prefix")?;
 
             let mut cursor = std::io::Cursor::new(&len_buf[..]);
             let msg_len = ReadBytesExt::read_u32::<NativeEndian>(&mut cursor)
                 .context("parse length prefix")?;
+            if msg_len > MAX_MESSAGE_SIZE {
+                anyhow::bail!(
+                    "native message is too large: {msg_len} bytes (maximum {MAX_MESSAGE_SIZE})"
+                );
+            }
 
             // Read the JSON payload
             let mut buf = vec![0u8; msg_len as usize];
@@ -116,8 +135,21 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn partial_length_prefix_is_clean_eof() {
-        let mut reader = Reader::new(&[0u8, 1][..]);
+    async fn empty_input_is_clean_eof() {
+        let mut reader = Reader::new(&[][..]);
         assert!(reader.read().await.expect("read").is_none());
+    }
+
+    #[tokio::test]
+    async fn partial_length_prefix_is_a_protocol_error() {
+        let mut reader = Reader::new(&[0u8, 1][..]);
+        assert!(reader.read().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn oversized_message_is_rejected_before_reading_payload() {
+        let header = (MAX_MESSAGE_SIZE + 1).to_ne_bytes();
+        let mut reader = Reader::new(&header[..]);
+        assert!(reader.read().await.is_err());
     }
 }
