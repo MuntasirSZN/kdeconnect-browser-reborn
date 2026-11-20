@@ -10,6 +10,7 @@ the Rust+TypeScript migration in progress.
 These issues are resolved by the Rust native messaging host + MV3 TypeScript extension.
 
 ### #56 — Fix DBUS interface for recent KDE Connect versions
+
 **Bug** · Reported 2023-10 by @pdf
 
 KDE Connect renamed `isTrusted` → `isPaired`. The old Go code read the wrong property.
@@ -23,6 +24,7 @@ Our Rust `fetch_device()` in `src/dbus.rs` already reads `isPaired` from D-Bus a
 ## Likely Fixed by Migration
 
 ### #62 — KDE-Connect got deactivated in Chrome
+
 **Bug** · Reported 2025-07 by @fethomm
 
 Chrome 137+ disabled the extension. Likely MV2 deprecation — Chrome is phasing out Manifest V2
@@ -32,6 +34,7 @@ published.
 **Action:** No code change needed; publish MV3 version.
 
 ### #57 — Not working with browser while native KDE-connect works
+
 **Bug** · Reported 2024-03 by @lamyergeier
 
 Error: `could not connect to native host` / `no version response received`. Symptoms match #56
@@ -44,6 +47,7 @@ Error: `could not connect to native host` / `no version response received`. Symp
 ## Easy Fixes
 
 ### #48 — Support aarch64 architecture
+
 **Enhancement** · Reported 2022-05 by @cbellosoto
 
 Rust makes cross-compilation trivial. Just needs a CI or build note:
@@ -61,7 +65,8 @@ detect the current architecture and prefer an arch-tagged sibling
 cross-architecture builds.
 
 ### #45 — Build for Pinephone
-*No labels* · Reported 2021-11 by @gemlog
+
+_No labels_ · Reported 2021-11 by @gemlog
 
 Same as #48 — Pinephone is aarch64.
 
@@ -73,6 +78,7 @@ installer and README; no additional work needed.
 ## Needs Verification
 
 ### #60 — KDE Connect works with Brave but not with Firefox
+
 **Bug** · Reported 2025-03 by @Joppla
 
 Extension works on Brave but shows "no devices found" on Firefox. Likely install/config issue —
@@ -87,6 +93,7 @@ the extension's `browser_specific_settings.gecko.id`. Close as already
 fixed/working with current builds.
 
 ### #35 — Tried building for macOS, Error executing binary
+
 **Bug** · Reported 2020-05 by @firefinchdev
 
 Old Go binary crashed on macOS because `go-dbus` couldn't find D-Bus session bus. With the Rust
@@ -100,6 +107,7 @@ KDE Connect would need to be running on macOS to provide a session bus.
 ## Enhancements (Future)
 
 ### #59 — Support Valent
+
 **Enhancement** · Reported 2025-03 by @SnoutBug
 
 Valent (GNOME-native KDE Connect replacement) uses the same D-Bus API as KDE Connect —
@@ -114,9 +122,11 @@ Valent engine test is still pending (Valent is not installed in this
 environment).
 
 ### #14 — Send image data rather than image link
+
 **Enhancement** · Reported 2017-11 by @pdf
 
 Request to transfer image file data instead of a URL. Requires:
+
 1. Download the image in the extension (fetch → blob)
 2. Send via D-Bus `shareUrl` with `file://` path, or use `sendFile` API
 3. KDE Connect plugin must support binary data transfer
@@ -124,6 +134,7 @@ Request to transfer image file data instead of a URL. Requires:
 Significant effort; not part of current migration.
 
 ### #11 — Investigate separate link contexts
+
 **Enhancement** · Reported 2017-12 by @pdf
 
 Explore separate menu entries for different link types (page, image, video, etc.).
@@ -135,18 +146,18 @@ Minor UX enhancement.
 
 These issues depend on platform D-Bus availability or were previously labeled wontfix.
 
-| Issue | Description | Reason |
-|-------|-------------|--------|
-| #50 | GSConnect support | Labeled wontfix (already compatible via D-Bus) |
-| #39 | Windows 10 support | D-Bus not natively available |
-| #4  | Port to non-Linux platforms | Tracking umbrella for macOS/Windows/FreeBSD |
-| #37 | FreeBSD support | D-Bus available via `devel/dbus`; needs testing |
-| #36 | Setting up on Chromium in Linux Mint | Packaging/install docs |
-| #34 | KDE sees device but not Firefox extension | Install question |
-| #26 | Raspbian install instructions | Packaging docs |
-| #22 | Unsupervised install to custom prefix | Packaging enhancement |
-| #21 | Rename extension? | Meta question |
-| #15 | Support for mconnect | GSConnect predecessor |
+| Issue | Description                               | Reason                                          |
+| ----- | ----------------------------------------- | ----------------------------------------------- |
+| #50   | GSConnect support                         | Labeled wontfix (already compatible via D-Bus)  |
+| #39   | Windows 10 support                        | D-Bus not natively available                    |
+| #4    | Port to non-Linux platforms               | Tracking umbrella for macOS/Windows/FreeBSD     |
+| #37   | FreeBSD support                           | D-Bus available via `devel/dbus`; needs testing |
+| #36   | Setting up on Chromium in Linux Mint      | Packaging/install docs                          |
+| #34   | KDE sees device but not Firefox extension | Install question                                |
+| #26   | Raspbian install instructions             | Packaging docs                                  |
+| #22   | Unsupervised install to custom prefix     | Packaging enhancement                           |
+| #21   | Rename extension?                         | Meta question                                   |
+| #15   | Support for mconnect                      | GSConnect predecessor                           |
 
 ---
 
@@ -156,22 +167,22 @@ These issues depend on platform D-Bus availability or were previously labeled wo
 
 ### ✅ Fixed (this session)
 
-| Issue | Fix |
-|-------|-----|
-| #56 D-Bus interface | Already fixed by Rust migration — `isPaired` mapped to `is_trusted` |
-| #62 Chrome deactivation | MV3 migration resolves MV2 deprecation |
-| #57 Not working | Fixed by #56 fix |
-| #60 Firefox not working | Added `browser_specific_settings.gecko` to manifest; extension ID matches native messaging manifest (verified: installed Firefox manifest + Gecko ID correct) |
-| #48 aarch64 support | Added `arch_tag()` + `pick_daemon_binary()` — installer prefers arch-tagged sibling (`<exe>-x86_64`/`-aarch64`); README cross-arch build note |
-| #45 Pinephone build | Same fix as #48 — installer detects architecture |
-| TS type errors | Created barrel `types.ts`, added `@types/chrome`, fixed `Message` optional fields |
-| Unused variable | Removed unused `prev` in `updateDevice()` |
-| Broken `is_valid_chrome_extension_id` test | `chrome_extension_id_validation_matches_browser_format` asserted `!is_valid("g"*32)`, contradicting the `a-p` range — fixed to test `q` instead |
+| Issue                                      | Fix                                                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #56 D-Bus interface                        | Already fixed by Rust migration — `isPaired` mapped to `is_trusted`                                                                                           |
+| #62 Chrome deactivation                    | MV3 migration resolves MV2 deprecation                                                                                                                        |
+| #57 Not working                            | Fixed by #56 fix                                                                                                                                              |
+| #60 Firefox not working                    | Added `browser_specific_settings.gecko` to manifest; extension ID matches native messaging manifest (verified: installed Firefox manifest + Gecko ID correct) |
+| #48 aarch64 support                        | Added `arch_tag()` + `pick_daemon_binary()` — installer prefers arch-tagged sibling (`<exe>-x86_64`/`-aarch64`); README cross-arch build note                 |
+| #45 Pinephone build                        | Same fix as #48 — installer detects architecture                                                                                                              |
+| TS type errors                             | Created barrel `types.ts`, added `@types/chrome`, fixed `Message` optional fields                                                                             |
+| Unused variable                            | Removed unused `prev` in `updateDevice()`                                                                                                                     |
+| Broken `is_valid_chrome_extension_id` test | `chrome_extension_id_validation_matches_browser_format` asserted `!is_valid("g"*32)`, contradicting the `a-p` range — fixed to test `q` instead               |
 
 ### 🔜 Remaining
 
-| Order | Issue | Fix | Difficulty |
-|-------|-------|-----|------------|
-| 7 | #59 Valent | Host verified against shared `org.kde.kdeconnect` D-Bus surface; live Valent engine test pending | Easy |
-| 8 | #14 Image data | Enhancement — scope TBD | Hard |
-| 9 | Platform ports (#35, #39, #4) | Requires D-Bus on target OS | Hard |
+| Order | Issue                         | Fix                                                                                              | Difficulty |
+| ----- | ----------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| 7     | #59 Valent                    | Host verified against shared `org.kde.kdeconnect` D-Bus surface; live Valent engine test pending | Easy       |
+| 8     | #14 Image data                | Enhancement — scope TBD                                                                          | Hard       |
+| 9     | Platform ports (#35, #39, #4) | Requires D-Bus on target OS                                                                      | Hard       |

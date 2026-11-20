@@ -1,4 +1,4 @@
-#  KDE Connect Browser Reborn ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
+# KDE Connect Browser Reborn ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
 
 A Firefox and Chromium-based browser extension to send pages and content from
 your browser to connected KDE Connect devices, via browser action or context menu.
@@ -11,7 +11,7 @@ issues as found in the original repo.
 ## Installation
 
 This extension relies on a Native Messaging Host to communicate with KDE Connect
-devices.  As a result, installation is a little more involved than stand-alone
+devices. As a result, installation is a little more involved than stand-alone
 extensions.
 
 1. Download the [latest release](https://github.com/MuntasirSZN/kdeconnect-chrome-extension/releases/latest) of the host application.

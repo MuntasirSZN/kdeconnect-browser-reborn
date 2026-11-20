@@ -78,7 +78,7 @@ Every PR must keep the full suite above green. Prefer running
 
 - Branch from the repo's current default branch and keep the change scoped
   to one concern.
-- Explain *why* in the PR description; link any issue you fix.
+- Explain _why_ in the PR description; link any issue you fix.
 - Fill in the PR template ([`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)):
   leave every checkbox ticked, and in "How to verify" describe how a reviewer
   can reproduce or verify the change.

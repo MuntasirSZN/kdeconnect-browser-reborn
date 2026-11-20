@@ -1,6 +1,6 @@
 # Accessibility Statement
 
-*A  KDE Connect Browser Reborn project.* Based on the
+_A KDE Connect Browser Reborn project._ Based on the
 [accessibility best practices for your project](https://opensource.guide/accessibility-best-practices-for-your-project/#start-with-an-accessibility-statement).
 
 ## What is this project?

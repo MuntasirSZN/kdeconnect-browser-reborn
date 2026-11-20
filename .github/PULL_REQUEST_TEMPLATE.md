@@ -29,10 +29,12 @@ Closes #123 or "N/A" — write `Closes #<issue number>` to auto-close on merge.
 Every PR should keep the following green. Check the boxes as you verify:
 
 Host (Rust) — from the repo root:
+
 - [ ] `cargo test`
 - [ ] `cargo build` (or `cargo build --release` if the change affects the binary)
 
 Extension (TypeScript) — from `extension/`:
+
 - [ ] `bunx tsc --noEmit`
 - [ ] `bunx oxlint --type-aware`
 - [ ] `bun test`
@@ -40,6 +42,7 @@ Extension (TypeScript) — from `extension/`:
 - [ ] `bunx web-ext lint --source-dir dist`
 
 Manual verification:
+
 - [ ] Behaviour verified in Firefox/Zen (and Chrome for MV3 paths, if relevant).
 
 ## How to verify
@@ -52,6 +55,6 @@ for UI changes.
 - [ ] I read [CONTRIBUTING.md](../CONTRIBUTING.md) and followed it.
 - [ ] I updated `THIRD_PARTY_NOTICES.md` if dependencies changed.
 - [ ] I updated [README.md](../README.md) or [ACCESSIBILITY.md](../ACCESSIBILITY.md)
-  if user-facing behaviour changed.
+      if user-facing behaviour changed.
 - [ ] My changes are covered by the project's
-  [Code of Conduct](../CODE_OF_CONDUCT.md).
+      [Code of Conduct](../CODE_OF_CONDUCT.md).
