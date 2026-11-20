@@ -230,8 +230,8 @@ async fn handle_message(
 ) -> Result<()> {
     match msg.msg_type {
         MessageType::Devices => {
-            let guard = devices.lock().await;
-            let data = dbus::devices_snapshot(guard.as_slice());
+            let current_devices = devices.lock().await.clone();
+            let data = dbus::devices_snapshot(&current_devices).await;
             let response = Message::result(MessageType::Devices, data);
             let _ = output_tx.send(response);
         }
@@ -278,18 +278,21 @@ async fn handle_share(
         .and_then(|d| serde_json::from_value(d.clone()).ok())
         .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
 
-    // Find the device by ID
-    let device_arc = {
-        let guard = devices.lock().await;
-        guard
-            .iter()
-            .find(|d| {
-                d.try_lock()
-                    .map(|s| s.device.id == share.target)
-                    .unwrap_or(false)
-            })
-            .cloned()
-    };
+    if !is_shareable_url(&share.url) {
+        anyhow::bail!("unsupported URL scheme; only http, https, and tel URLs can be shared");
+    }
+
+    // Clone the list before awaiting individual device locks. A brief lock
+    // contention must not make a valid target appear to be an unknown ID.
+    let candidates = devices.lock().await.clone();
+    let mut device_arc = None;
+    for candidate in candidates {
+        let matches = candidate.lock().await.device.id == share.target;
+        if matches {
+            device_arc = Some(candidate);
+            break;
+        }
+    }
 
     match device_arc {
         Some(d) => {
@@ -303,9 +306,24 @@ async fn handle_share(
     Ok(())
 }
 
+fn is_shareable_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    url.starts_with("http://") || url.starts_with("https://") || url.starts_with("tel:")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_supported_url_schemes_are_shareable() {
+        assert!(is_shareable_url("https://example.com/page"));
+        assert!(is_shareable_url("http://example.com"));
+        assert!(is_shareable_url("tel:+15551234"));
+        assert!(!is_shareable_url("javascript:alert(1)"));
+        assert!(!is_shareable_url("file:///etc/passwd"));
+        assert!(!is_shareable_url("chrome://settings"));
+    }
 
     #[test]
     fn browser_arguments_are_accepted() {

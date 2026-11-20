@@ -25,7 +25,7 @@ function writeDevices(devices: Record<string, Device>): void {
   for (const dev of Object.values(devices).filter(Boolean)) {
     const opt = document.createElement("option");
     opt.value = dev.id;
-    opt.disabled = !(dev.isReachable || dev.isTrusted);
+    opt.disabled = !(dev.isReachable && dev.isTrusted);
     opt.selected = defaultDeviceId === dev.id;
     opt.textContent = dev.name;
     select.appendChild(opt);
@@ -57,12 +57,18 @@ function saveOptions(): void {
     },
     () => {
       const status = document.getElementById("status");
-      if (status) {
-        status.textContent = "Saved…";
-        setTimeout(() => {
-          status.textContent = "";
-        }, 750);
+      if (!status) return;
+
+      const error = chrome.runtime.lastError;
+      if (error) {
+        status.textContent = `Save failed: ${error.message ?? "unknown error"}`;
+        return;
       }
+
+      status.textContent = "Saved…";
+      setTimeout(() => {
+        status.textContent = "";
+      }, 750);
     },
   );
 }

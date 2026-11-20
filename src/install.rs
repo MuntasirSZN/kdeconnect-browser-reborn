@@ -17,27 +17,7 @@ use tracing::{info, warn};
 const APP_NAME: &str = "com.0xc0dedbad.kdeconnect_chrome";
 const DEFAULT_EXTENSION_ID: &str = "ofmplbbfigookafjahpeepbggpofdhbo";
 
-/// Chrome-native manifest template.
-const CHROME_MANIFEST: &str = r#"{
-  "name": "com.0xc0dedbad.kdeconnect_chrome",
-  "description": "KDE Connect",
-  "path": "{{path}}",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://{{extension_id}}/"
-  ]
-}"#;
-
-/// Firefox-native manifest template.
-const FIREFOX_MANIFEST: &str = r#"{
-  "name": "com.0xc0dedbad.kdeconnect_chrome",
-  "description": "KDE Connect",
-  "path": "{{path}}",
-  "type": "stdio",
-  "allowed_extensions": [
-    "kde-connect@0xc0dedbad.com"
-  ]
-}"#;
+const FIREFOX_EXTENSION_ID: &str = "kde-connect@0xc0dedbad.com";
 
 // ---------------------------------------------------------------------------
 // Browser entries
@@ -175,7 +155,7 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
 // Manifest template
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 struct ManifestContext {
     path: String,
     extension_id: Option<String>,
@@ -197,21 +177,46 @@ impl ManifestContext {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct NativeManifest {
+    name: String,
+    description: String,
+    path: String,
+    #[serde(rename = "type")]
+    host_type: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allowed_origins: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allowed_extensions: Option<Vec<String>>,
+}
+
+/// Chrome extension IDs contain exactly 32 lowercase characters in a-p.
+fn is_valid_chrome_extension_id(id: &str) -> bool {
+    id.len() == 32 && id.bytes().all(|byte| (b'a'..=b'p').contains(&byte))
+}
+
 /// Render the native messaging manifest for the given browser.
 fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
-    let template = if browser == "firefox" {
-        FIREFOX_MANIFEST
+    let (allowed_origins, allowed_extensions) = if browser == "firefox" {
+        (None, Some(vec![FIREFOX_EXTENSION_ID.to_owned()]))
     } else {
-        CHROME_MANIFEST
+        let extension_id = ctx
+            .extension_id
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Chrome native host requires an extension ID"))?;
+        (Some(vec![format!("chrome-extension://{extension_id}/")]), None)
     };
 
-    let mut s = template.to_owned();
-    s = s.replace("{{path}}", &ctx.path);
-    if let Some(ext) = &ctx.extension_id {
-        s = s.replace("{{extension_id}}", ext);
-    }
+    let manifest = NativeManifest {
+        name: APP_NAME.to_owned(),
+        description: "KDE Connect".to_owned(),
+        path: ctx.path.clone(),
+        host_type: "stdio",
+        allowed_origins,
+        allowed_extensions,
+    };
 
-    Ok(s)
+    serde_json::to_string_pretty(&manifest).context("serialize native messaging manifest")
 }
 
 // ---------------------------------------------------------------------------
@@ -222,8 +227,10 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
 fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()> {
     let dir = PathBuf::from(target_dir);
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let dir = std::fs::canonicalize(&dir)
+        .with_context(|| format!("resolve installation directory {}", dir.display()))?;
 
-    // Destination binary path
+    // Destination path must be absolute in the native messaging manifest.
     let daemon_path = dir.join(APP_NAME);
 
     // Copy self
@@ -310,15 +317,20 @@ pub fn install(developer: bool) -> Result<()> {
         None
     };
 
-    // Extension ID
-    let extension_id = if developer {
-        Text::new("Extension ID (Enter accepts default)")
+    // Firefox uses the fixed Gecko ID. Only Chrome-family installs need the
+    // developer-supplied Chrome extension ID.
+    let needs_chrome_id = chosen.iter().any(|browser| *browser != Browser::Firefox);
+    let extension_id = if developer && needs_chrome_id {
+        Text::new("Chrome extension ID (Enter accepts default)")
             .with_default(DEFAULT_EXTENSION_ID)
             .prompt()
             .map_err(|e| anyhow::anyhow!("extension ID cancelled: {}", e))?
     } else {
         DEFAULT_EXTENSION_ID.to_owned()
     };
+    if needs_chrome_id && !is_valid_chrome_extension_id(&extension_id) {
+        anyhow::bail!("invalid Chrome extension ID: expected 32 lowercase characters from a-p");
+    }
 
     // ---- Install for each selected browser ----
     for browser in &chosen {
@@ -342,4 +354,39 @@ pub fn install(developer: bool) -> Result<()> {
 
     info!("Done.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chrome_manifest_escapes_paths() {
+        let path = r#"/home/user/a "quoted" folder/host\binary"#;
+        let ctx = ManifestContext::chrome(path, DEFAULT_EXTENSION_ID);
+        let json: serde_json::Value =
+            serde_json::from_str(&render_manifest("chrome", &ctx).expect("manifest")).unwrap();
+        assert_eq!(json["path"], path);
+        assert_eq!(
+            json["allowed_origins"][0],
+            format!("chrome-extension://{DEFAULT_EXTENSION_ID}/")
+        );
+    }
+
+    #[test]
+    fn firefox_manifest_uses_allowed_extensions() {
+        let ctx = ManifestContext::firefox("/usr/lib/native-host");
+        let json: serde_json::Value =
+            serde_json::from_str(&render_manifest("firefox", &ctx).expect("manifest")).unwrap();
+        assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
+        assert!(json.get("allowed_origins").is_none());
+    }
+
+    #[test]
+    fn chrome_extension_id_validation_matches_browser_format() {
+        assert!(is_valid_chrome_extension_id(DEFAULT_EXTENSION_ID));
+        assert!(is_valid_chrome_extension_id("a".repeat(32).as_str()));
+        assert!(!is_valid_chrome_extension_id("not-an-extension-id"));
+        assert!(!is_valid_chrome_extension_id("g".repeat(32).as_str()));
+    }
 }

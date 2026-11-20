@@ -5,8 +5,6 @@
 //!
 //! This module provides async `Reader` and `Writer` over tokio's stdio handles.
 
-use std::io::ErrorKind;
-
 use anyhow::{Context, Result};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};

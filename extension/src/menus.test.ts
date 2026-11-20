@@ -88,6 +88,15 @@ describe("buildMenuSpec", () => {
     expect(new Set(spec.map((e) => e.id.split("@")[1]))).toEqual(new Set(["b"]));
   });
 
+  test("defaultOnly with no selected device does not expose all devices", () => {
+    const spec = buildMenuSpec(
+      { a: device({ id: "a" }), b: device({ id: "b" }) },
+      { ...options, defaultOnly: true, defaultDeviceId: null },
+      strings,
+    );
+    expect(spec).toEqual([]);
+  });
+
   test("quotes in device name are preserved", () => {
     const spec = buildMenuSpec({ dev1: device({ name: `Pixel's <b>"test"` }) }, options, strings);
     expect(spec[0].title).toBe(`Open on 'Pixel's <b>"test"'`);

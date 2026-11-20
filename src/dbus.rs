@@ -174,14 +174,12 @@ pub async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
 
 /// Serialise the current device cache as the `typeDevices` payload,
 /// keyed by device id.
-pub fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
-    let map: BTreeMap<String, Device> = devices
-        .iter()
-        .filter_map(|shared| {
-            let state = shared.try_lock().ok()?;
-            Some((state.device.id.clone(), state.device.clone()))
-        })
-        .collect();
+pub async fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
+    let mut map = BTreeMap::new();
+    for shared in devices {
+        let state = shared.lock().await;
+        map.insert(state.device.id.clone(), state.device.clone());
+    }
 
     serde_json::to_value(map).unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
 }
@@ -341,15 +339,13 @@ async fn resync_devices(
                 }
             }
 
-            let guard = {
+            let snapshot_devices = fresh.clone();
+            {
                 let mut guard = devices.lock().await;
                 *guard = fresh;
-                guard
-            };
-            let _ = output_tx.send(Message::result(
-                MessageType::Devices,
-                devices_snapshot(guard.as_slice()),
-            ));
+            }
+            let snapshot = devices_snapshot(&snapshot_devices).await;
+            let _ = output_tx.send(Message::result(MessageType::Devices, snapshot));
         }
         Err(e) => {
             warn!(error = %e, "device re-discovery failed");
@@ -424,13 +420,15 @@ async fn handle_signal(
     output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
 ) -> Result<()> {
     // Find the device by object path
-    let device_arc = {
-        let guard = devices.lock().await;
-        guard
-            .iter()
-            .find(|d| d.try_lock().map(|s| s.object_path == path).unwrap_or(false))
-            .cloned()
-    };
+    let candidates = devices.lock().await.clone();
+    let mut device_arc = None;
+    for candidate in candidates {
+        let matches = candidate.lock().await.object_path == path;
+        if matches {
+            device_arc = Some(candidate);
+            break;
+        }
+    }
 
     let dev_arc = match device_arc {
         Some(d) => d,
@@ -502,10 +500,10 @@ mod tests {
         }))
     }
 
-    #[test]
-    fn snapshot_is_keyed_by_device_id() {
+    #[tokio::test]
+    async fn snapshot_is_keyed_by_device_id() {
         let devices = vec![shared(device("a", "Phone")), shared(device("b", "Laptop"))];
-        let json = devices_snapshot(&devices);
+        let json = devices_snapshot(&devices).await;
         assert_eq!(json["a"]["name"], "Phone");
         assert_eq!(json["b"]["name"], "Laptop");
         assert_eq!(json.as_object().expect("object").len(), 2);

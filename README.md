@@ -1,4 +1,4 @@
-# KDE Connect Browser Extension ![License-MIT](http://img.shields.io/badge/license-MIT-red.svg)
+# KDE Connect Browser Extension ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
 
 A Chrome (and compatible) browser extension to send pages and content from your
 browser to connected KDE Connect devices, via browser action or context menu.
@@ -12,7 +12,7 @@ This extension relies on a Native Messaging Host to communicate with KDE Connect
 devices.  As a result, installation is a little more involved than stand-alone
 extensions.
 
-1. Download the [latest release](https://github.com/pdf/kdeconnect-chrome-extension/releases/latest) of the host application.
+1. Download the [latest release](https://github.com/MuntasirSZN/kdeconnect-chrome-extension/releases/latest) of the host application.
 2. Close your browser.
 3. Extract the host application anywhere, open a terminal and run the install
    command:
@@ -51,7 +51,7 @@ and should run anywhere the Rust toolchain supports.
 2. Clone the repository:
 
    ```bash
-   git clone https://github.com/pdf/kdeconnect-chrome-extension.git
+   git clone https://github.com/MuntasirSZN/kdeconnect-chrome-extension.git
    cd kdeconnect-chrome-extension
    ```
 

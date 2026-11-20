@@ -10,6 +10,8 @@ export default defineConfig({
   format: "esm",
   target: "es2022",
   platform: "browser",
+  // Extensions cannot resolve npm bare specifiers at runtime.
+  deps: { alwaysBundle: ["lucide"] },
   clean: true,
   sourcemap: true,
   dts: false,

@@ -92,8 +92,9 @@ export function buildMenuSpec(
 
   let usable = Object.values(devices).filter((d) => d.isReachable && d.isTrusted);
 
-  if (options.defaultOnly && options.defaultDeviceId) {
+  if (options.defaultOnly) {
     const id = options.defaultDeviceId;
+    if (!id) return [];
     usable = usable.filter((d) => d.id === id);
   }
 
