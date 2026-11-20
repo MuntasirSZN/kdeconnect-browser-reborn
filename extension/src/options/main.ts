@@ -7,6 +7,7 @@ import type { Device, Message } from "../generated/types.js";
 // ── State ──────────────────────────────────────────────────────────────
 
 let defaultDeviceId: string | null = null;
+let knownDevices: Record<string, Device> = {};
 
 // ── Messaging ──────────────────────────────────────────────────────────
 
@@ -103,7 +104,16 @@ function restoreOptions(): void {
 
 function onMessage(msg: Message): void {
   if (msg.type === "typeDevices") {
-    writeDevices((msg.data ?? {}) as Record<string, Device>);
+    knownDevices = (msg.data ?? {}) as Record<string, Device>;
+    writeDevices(knownDevices);
+    return;
+  }
+
+  if (msg.type === "typeDeviceUpdate") {
+    const device = msg.data as Device | undefined;
+    if (!device?.id) return;
+    knownDevices[device.id] = device;
+    writeDevices(knownDevices);
   }
 }
 

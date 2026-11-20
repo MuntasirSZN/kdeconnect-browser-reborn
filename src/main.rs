@@ -187,8 +187,10 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
                 break;
             }
             Err(e) => {
-                error!(error = %e, "stdin read error, continuing");
-                continue;
+                // Framing and pipe errors are fatal: retrying cannot recover
+                // the stream position and may otherwise spin forever.
+                error!(error = %e, "stdin read error, shutting down");
+                break;
             }
         };
 

@@ -48,7 +48,7 @@ impl Browser {
 
     fn label(&self) -> &'static str {
         match self {
-            Browser::Chrome => "Chrome / Opera",
+            Browser::Chrome => "Google Chrome",
             Browser::Chromium => "Chromium",
             Browser::Brave => "Brave",
             Browser::Vivaldi => "Vivaldi",
@@ -126,8 +126,8 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
                 "/Library/Application Support/Chromium/NativeMessagingHosts",
             ),
             "brave" => (
-                &format!("{}/Chromium/NativeMessagingHosts", lib),
-                "/Library/Application Support/Chromium/NativeMessagingHosts",
+                &format!("{}/BraveSoftware/Brave-Browser/NativeMessagingHosts", lib),
+                "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
             ),
             "vivaldi" => (
                 &format!("{}/Vivaldi/NativeMessagingHosts", lib),

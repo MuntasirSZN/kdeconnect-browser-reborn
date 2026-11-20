@@ -47,7 +47,7 @@ and should run anywhere the Rust toolchain supports.
 
 ## Building from source
 
-1. Install the [Rust toolchain](https://rustup.rs) (v1.75+).
+1. Install the [Rust toolchain](https://rustup.rs) (v1.90+).
 2. Clone the repository:
 
    ```bash
@@ -61,7 +61,7 @@ and should run anywhere the Rust toolchain supports.
    cargo build --release
    ```
 
-You will find the binary at `target/release/kdeconnect-chrome-extension`.
+You will find the binary at `target/release/kdeconnect-browser-extension`.
 
 ## Usage
 
