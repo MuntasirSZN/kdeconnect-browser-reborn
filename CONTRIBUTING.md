@@ -1,7 +1,7 @@
 # Contributing
 
 Thank you for your interest in contributing to
-[KDE Connect Browser Extension](../README.md)!
+[ KDE Connect Browser Reborn](../README.md)!
 
 This project has two components that must both stay green:
 

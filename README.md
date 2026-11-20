@@ -1,4 +1,4 @@
-# KDE Connect Browser Extension ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
+#  KDE Connect Browser Reborn ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
 
 A Firefox and Chromium-based browser extension to send pages and content from
 your browser to connected KDE Connect devices, via browser action or context menu.
@@ -18,7 +18,7 @@ extensions.
    command:
 
    ```bash
-   ./kdeconnect-browser-extension --install
+   ./kdeconnect-browser-reborn --install
    ```
 
    It will prompt you to select the browser you wish to install for, use
@@ -28,14 +28,14 @@ extensions.
    If you wish to install as a developer (custom extension ID), add `--dev`:
 
    ```bash
-   ./kdeconnect-browser-extension --install --dev
+   ./kdeconnect-browser-reborn --install --dev
    ```
 
    If you wish to deploy system-wide, rather than for the current user, simply
    run as root:
 
    ```bash
-   sudo ./kdeconnect-browser-extension --install
+   sudo ./kdeconnect-browser-reborn --install
    ```
 
 4. Start your browser.
@@ -49,13 +49,13 @@ and should run anywhere the Rust toolchain supports.
 
 The native host and browser extension are released separately. To update the
 native host, download the new release archive, close the browser, and run the
-new `kdeconnect-browser-extension --install` binary again. The installer
+new `kdeconnect-browser-reborn --install` binary again. The installer
 replaces the host binary and manifest for the selected browser. Restart the
 browser after installation.
 
 For a source build, run `cargo build --release`, then install the resulting
-`target/release/kdeconnect-browser-extension` binary with
-`./target/release/kdeconnect-browser-extension --install`.
+`target/release/kdeconnect-browser-reborn` binary with
+`./target/release/kdeconnect-browser-reborn --install`.
 
 ## Building from source
 
@@ -73,7 +73,7 @@ For a source build, run `cargo build --release`, then install the resulting
    cargo build --release
    ```
 
-You will find the binary at `target/release/kdeconnect-browser-extension`.
+You will find the binary at `target/release/kdeconnect-browser-reborn`.
 
 ### Building for other architectures (e.g. aarch64, Pinephone)
 
@@ -83,13 +83,13 @@ cargo build --release --target aarch64-unknown-linux-gnu
 ```
 
 When several binaries are shipped side by side in one directory (e.g.
-`kdeconnect-browser-extension-x86_64` and `kdeconnect-browser-extension-aarch64`),
+`kdeconnect-browser-reborn-x86_64` and `kdeconnect-browser-reborn-aarch64`),
 `--install` detects the current architecture and installs the matching one.
 
 ## Usage
 
 ```
-Usage: kdeconnect-browser-extension [OPTIONS]
+Usage: kdeconnect-browser-reborn [OPTIONS]
 
 Options:
       --install    Perform interactive install into browser native messaging hosts dirs

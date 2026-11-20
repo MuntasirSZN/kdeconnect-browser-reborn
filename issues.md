@@ -57,7 +57,7 @@ Also needs the install script to detect the architecture and pick the right bina
 
 **Action:** FIXED — `arch_tag()` + `pick_daemon_binary()` in `src/install.rs`
 detect the current architecture and prefer an arch-tagged sibling
-(`kdeconnect-browser-extension-<arch>`) when present; README documents
+(`kdeconnect-browser-reborn-<arch>`) when present; README documents
 cross-architecture builds.
 
 ### #45 — Build for Pinephone

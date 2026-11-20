@@ -434,12 +434,12 @@ mod tests {
         }
     }
 
-    /// Create a `<dir>/kdeconnect-browser-extension` test binary.
+    /// Create a `<dir>/kdeconnect-browser-reborn` test binary.
     fn fake_exe(dir: &Path, with_tagged_sibling: bool) -> PathBuf {
-        let exe = dir.join("kdeconnect-browser-extension");
+        let exe = dir.join("kdeconnect-browser-reborn");
         std::fs::write(&exe, b"#!/bin/sh\n").expect("write test exe");
         if with_tagged_sibling {
-            let tagged = dir.join(format!("kdeconnect-browser-extension-{}", arch_tag()));
+            let tagged = dir.join(format!("kdeconnect-browser-reborn-{}", arch_tag()));
             std::fs::write(&tagged, b"#!/bin/sh\n").expect("write tagged sibling");
         }
         exe
@@ -451,7 +451,7 @@ mod tests {
             std::env::temp_dir().join(format!("kdeconnect-install-tag-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let exe = fake_exe(&dir, true);
-        let tagged = dir.join(format!("kdeconnect-browser-extension-{}", arch_tag()));
+        let tagged = dir.join(format!("kdeconnect-browser-reborn-{}", arch_tag()));
         assert_eq!(pick_daemon_binary(&exe), tagged);
         std::fs::remove_dir_all(&dir).ok();
     }

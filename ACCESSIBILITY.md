@@ -1,11 +1,11 @@
 # Accessibility Statement
 
-*A KDE Connect Browser Extension project.* Based on the
+*A  KDE Connect Browser Reborn project.* Based on the
 [accessibility best practices for your project](https://opensource.guide/accessibility-best-practices-for-your-project/#start-with-an-accessibility-statement).
 
 ## What is this project?
 
-[KDE Connect Browser Extension](https://github.com/MuntasirSZN/kdeconnect-chrome-extension)
+[ KDE Connect Browser Reborn](https://github.com/MuntasirSZN/kdeconnect-chrome-extension)
 is a Firefox and Chromium-based extension that sends pages and content from
 your browser to connected KDE Connect devices — via the browser action
 popup, or the right-click context menu. It supports both Firefox/Zen and

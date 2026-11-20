@@ -1,4 +1,4 @@
-//! KDE Connect Browser Extension — Native Messaging Host.
+//! KDE Connect Browser Reborn — Native Messaging Host.
 //!
 //! Bridges the browser extension with KDE Connect over D-Bus.
 //!
@@ -42,7 +42,7 @@ const CLI_VERSION: &str = "0.1.7";
 
 #[derive(Parser)]
 #[command(
-    name = "kdeconnect-browser-extension",
+    name = "kdeconnect-browser-reborn",
     version = CLI_VERSION,
     disable_version_flag = true,
 )]
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     // --version
     if cli.version {
         println!(
-            "kdeconnect-browser-extension version {} (protocol {}), built with rustc",
+            "kdeconnect-browser-reborn version {} (protocol {}), built with rustc",
             CLI_VERSION, PROTOCOL_VERSION,
         );
         return Ok(());
@@ -389,14 +389,14 @@ mod tests {
     #[test]
     fn browser_arguments_are_accepted() {
         let cli = Cli::try_parse_from([
-            "kdeconnect-browser-extension",
+            "kdeconnect-browser-reborn",
             "/home/user/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json",
             "kde-connect@0xc0dedbad.com",
         ])
         .expect("Firefox argv");
         assert!(!cli.install && !cli.dev && !cli.version && !cli.devices);
 
-        Cli::try_parse_from(["kdeconnect-browser-extension", "chrome-extension://abcdef/"])
+        Cli::try_parse_from(["kdeconnect-browser-reborn", "chrome-extension://abcdef/"])
             .expect("Chrome argv");
     }
 }
