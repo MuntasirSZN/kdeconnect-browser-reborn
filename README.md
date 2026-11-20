@@ -75,6 +75,17 @@ For a source build, run `cargo build --release`, then install the resulting
 
 You will find the binary at `target/release/kdeconnect-browser-extension`.
 
+### Building for other architectures (e.g. aarch64, Pinephone)
+
+```bash
+rustup target add aarch64-unknown-linux-gnu
+cargo build --release --target aarch64-unknown-linux-gnu
+```
+
+When several binaries are shipped side by side in one directory (e.g.
+`kdeconnect-browser-extension-x86_64` and `kdeconnect-browser-extension-aarch64`),
+`--install` detects the current architecture and installs the matching one.
+
 ## Usage
 
 ```
