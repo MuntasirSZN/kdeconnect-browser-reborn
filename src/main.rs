@@ -1,4 +1,4 @@
-//! KDE Connect Chrome Extension — Native Messaging Host.
+//! KDE Connect Browser Extension — Native Messaging Host.
 //!
 //! Bridges the browser extension with KDE Connect over D-Bus.
 //!
@@ -42,7 +42,7 @@ const CLI_VERSION: &str = "0.1.7";
 
 #[derive(Parser)]
 #[command(
-    name = "kdeconnect-chrome-extension",
+    name = "kdeconnect-browser-extension",
     version = CLI_VERSION,
     disable_version_flag = true,
 )]
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
     // --version
     if cli.version {
         println!(
-            "kdeconnect-chrome-extension version {} (protocol {}), built with rustc",
+            "kdeconnect-browser-extension version {} (protocol {}), built with rustc",
             CLI_VERSION, PROTOCOL_VERSION,
         );
         return Ok(());
@@ -173,6 +173,17 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
         while let Some(msg) = output_rx.recv().await {
             if let Err(e) = writer.write(&msg).await {
                 error!(error = %e, "stdout write error");
+
+                // Never silently lose an oversized device snapshot. Send a
+                // small bounded protocol error so the extension can surface it.
+                let fallback = Message::result(
+                    MessageType::Error,
+                    serde_json::Value::String(format!("Unable to send host response: {e}")),
+                );
+                if let Err(fallback_error) = writer.write(&fallback).await {
+                    error!(error = %fallback_error, "failed to send fallback protocol error");
+                    break;
+                }
             }
         }
     });
@@ -281,7 +292,7 @@ async fn handle_share(
         .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
 
     if !is_shareable_url(&share.url) {
-        anyhow::bail!("unsupported URL scheme; only http, https, and tel URLs can be shared");
+        anyhow::bail!("unsupported URL scheme; only http and https URLs can be shared");
     }
 
     // Clone the list before awaiting individual device locks. A brief lock
@@ -310,7 +321,7 @@ async fn handle_share(
 
 fn is_shareable_url(url: &str) -> bool {
     let url = url.to_ascii_lowercase();
-    url.starts_with("http://") || url.starts_with("https://") || url.starts_with("tel:")
+    url.starts_with("http://") || url.starts_with("https://")
 }
 
 #[cfg(test)]
@@ -321,7 +332,7 @@ mod tests {
     fn only_supported_url_schemes_are_shareable() {
         assert!(is_shareable_url("https://example.com/page"));
         assert!(is_shareable_url("http://example.com"));
-        assert!(is_shareable_url("tel:+15551234"));
+        assert!(!is_shareable_url("tel:+15551234"));
         assert!(!is_shareable_url("javascript:alert(1)"));
         assert!(!is_shareable_url("file:///etc/passwd"));
         assert!(!is_shareable_url("chrome://settings"));
@@ -330,14 +341,14 @@ mod tests {
     #[test]
     fn browser_arguments_are_accepted() {
         let cli = Cli::try_parse_from([
-            "kdeconnect-chrome-extension",
+            "kdeconnect-browser-extension",
             "/home/user/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json",
             "kde-connect@0xc0dedbad.com",
         ])
         .expect("Firefox argv");
         assert!(!cli.install && !cli.dev && !cli.version && !cli.devices);
 
-        Cli::try_parse_from(["kdeconnect-chrome-extension", "chrome-extension://abcdef/"])
+        Cli::try_parse_from(["kdeconnect-browser-extension", "chrome-extension://abcdef/"])
             .expect("Chrome argv");
     }
 }

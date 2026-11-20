@@ -1,7 +1,7 @@
 # KDE Connect Browser Extension ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
 
-A Chrome (and compatible) browser extension to send pages and content from your
-browser to connected KDE Connect devices, via browser action or context menu.
+A Firefox and Chromium-based browser extension to send pages and content from
+your browser to connected KDE Connect devices, via browser action or context menu.
 
 __Update__: As of v0.2.0 the native messaging host has been rewritten in Rust
 for improved reliability, performance, and maintainability.

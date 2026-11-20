@@ -1,20 +1,18 @@
 import type { Device, ExtensionOptions } from "./generated/types.js";
 
-export type MenuAction = "open-link" | "open-page" | "call" | "open-tab";
+export type MenuAction = "open-link" | "open-page" | "open-tab";
 
 export interface MenuEntry {
   id: string;
-  parentId?: string;
   title: string;
   contexts: [`${chrome.contextMenus.ContextType}`, ...`${chrome.contextMenus.ContextType}`[]];
   targetUrlPatterns?: string[];
   documentUrlPatterns?: string[];
+  icons?: { 16: string };
 }
 
 export interface MenuStrings {
-  root: string;
   open: (name: string) => string;
-  call: (name: string) => string;
 }
 
 export interface MenuClickInfo {
@@ -24,116 +22,86 @@ export interface MenuClickInfo {
 }
 
 const HTTP_PATTERNS = ["http://*/*", "https://*/*"];
+const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "open-tab"];
 
-const ROOT_ID = "kdeconnect-root";
+const DEVICE_MENU_ICONS: Record<string, string> = {
+  phone: "images/devices/phone.svg",
+  smartphone: "images/devices/phone.svg",
+  tablet: "images/devices/tablet.svg",
+  desktop: "images/devices/computer.svg",
+  tv: "images/devices/computer.svg",
+  laptop: "images/devices/laptop.svg",
+};
 
-/** Types that cannot receive a `tel:` link. */
-const NO_CALL_TYPES = new Set(["desktop", "laptop", "tv"]);
-
-const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "call", "open-tab"];
-
-function entryFor(
-  action: MenuAction,
-  device: Device,
-  strings: MenuStrings,
-  parentId?: string,
-): MenuEntry {
+function entryFor(action: MenuAction, device: Device, title: string, isFirefox: boolean): MenuEntry {
   const id = `${action}@${device.id}`;
-  const common = parentId === undefined ? {} : { parentId };
+  const icons = isFirefox
+    ? { 16: DEVICE_MENU_ICONS[device.type] ?? DEVICE_MENU_ICONS.desktop }
+    : undefined;
+  const common = icons ? { icons } : {};
 
   switch (action) {
     case "open-link":
       return {
         id,
+        title,
         ...common,
-        title: strings.open(device.name),
         contexts: ["link", "image", "audio", "video"],
         targetUrlPatterns: HTTP_PATTERNS,
       };
     case "open-page":
       return {
         id,
+        title,
         ...common,
-        title: strings.open(device.name),
         contexts: ["page"],
         documentUrlPatterns: HTTP_PATTERNS,
-      };
-    case "call":
-      return {
-        id,
-        ...common,
-        title: strings.call(device.name),
-        // "tel:" is not a supported match-pattern scheme. Filter it in
-        // resolveMenuUrl() when the item is clicked instead.
-        contexts: ["link"],
       };
     case "open-tab":
       return {
         id,
+        title,
         ...common,
-        title: strings.open(device.name),
         contexts: ["tab"],
         documentUrlPatterns: HTTP_PATTERNS,
       };
   }
 }
 
-/**
- * Build the context-menu tree for the current device snapshot.
- *
- * A single usable device gets flat pbi-style items; two or more are grouped
- * under a `KDE Connect` submenu.
- */
+/** Flat KDE Connect menus, following PBI's link/page actions and Firefox tab action. */
 export function buildMenuSpec(
   devices: Record<string, Device>,
   options: ExtensionOptions,
   strings: MenuStrings,
+  isFirefox = false,
 ): MenuEntry[] {
   if (options.disableContextMenu) return [];
 
   let usable = Object.values(devices).filter((d) => d.isReachable && d.isTrusted);
-
   if (options.defaultOnly) {
     const id = options.defaultDeviceId;
     if (!id) return [];
     usable = usable.filter((d) => d.id === id);
   }
 
-  if (usable.length === 0) return [];
-
-  const grouped = usable.length > 1;
   const entries: MenuEntry[] = [];
-
-  if (grouped) {
-    entries.push({
-      id: ROOT_ID,
-      title: strings.root,
-      contexts: ["page", "link", "image", "audio", "video", "tab"],
-    });
-  }
-
   for (const device of usable) {
-    for (const action of ACTIONS) {
-      if (action === "call" && NO_CALL_TYPES.has(device.type)) continue;
-      entries.push(entryFor(action, device, strings, grouped ? ROOT_ID : undefined));
-    }
+    const title = strings.open(device.name);
+    entries.push(entryFor("open-link", device, title, isFirefox));
+    entries.push(entryFor("open-page", device, title, isFirefox));
+    if (isFirefox) entries.push(entryFor("open-tab", device, title, true));
   }
-
   return entries;
 }
 
-/** Decode a menu item id into its action and target device. */
 export function parseMenuId(id: string): { action: MenuAction; deviceId: string } | null {
   const at = id.indexOf("@");
   if (at <= 0 || at === id.length - 1) return null;
-
   const action = id.slice(0, at) as MenuAction;
   if (!ACTIONS.includes(action)) return null;
-
   return { action, deviceId: id.slice(at + 1) };
 }
 
-/** Pick the URL to share for a click and reject unsafe schemes. */
 export function resolveMenuUrl(
   action: MenuAction,
   info: MenuClickInfo,
@@ -145,12 +113,6 @@ export function resolveMenuUrl(
       : action === "open-tab"
         ? (info.pageUrl ?? tabUrl)
         : (info.linkUrl ?? info.srcUrl);
-
   if (!candidate) return null;
-
-  if (action === "call") {
-    return candidate.startsWith("tel:") ? candidate : null;
-  }
-
   return candidate.startsWith("http://") || candidate.startsWith("https://") ? candidate : null;
 }

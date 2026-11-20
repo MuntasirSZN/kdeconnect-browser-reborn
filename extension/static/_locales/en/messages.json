@@ -14,9 +14,5 @@
   "kdeconnect_open_device": {
     "message": "Open on '$1'",
     "description": "Context-menu item that shares the current URL. $1 is the device name."
-  },
-  "kdeconnect_call_device": {
-    "message": "Call on '$1'",
-    "description": "Context-menu item that sends a tel: link. $1 is the device name."
   }
 }

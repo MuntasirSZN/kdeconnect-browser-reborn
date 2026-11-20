@@ -5,6 +5,7 @@
 //!
 //! This module provides async `Reader` and `Writer` over tokio's stdio handles.
 
+use std::io::{self, Write as IoWrite};
 use anyhow::{Context, Result};
 use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -19,6 +20,28 @@ use crate::types::Message;
 // Writer
 // ---------------------------------------------------------------------------
 
+/// Collect JSON output without ever allocating beyond the protocol limit.
+#[derive(Default)]
+struct BoundedBuffer {
+    bytes: Vec<u8>,
+    exceeded: bool,
+}
+
+impl IoWrite for BoundedBuffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if self.bytes.len().saturating_add(bytes.len()) > MAX_MESSAGE_SIZE as usize {
+            self.exceeded = true;
+            return Err(io::Error::other("native message exceeds 1 MiB"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Serialises `Message` values to a length-prefixed JSON stream (stdout).
 pub struct Writer<W: AsyncWrite + Unpin> {
     inner: W,
@@ -31,13 +54,17 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
 
     /// Encode and flush a message.
     pub async fn write(&mut self, msg: &Message) -> Result<()> {
-        let buf = serde_json::to_vec(msg).context("serialize message")?;
-        let len = u32::try_from(buf.len()).context("native message length exceeds u32")?;
-        if len > MAX_MESSAGE_SIZE {
+        let mut output = BoundedBuffer::default();
+        let serialized = serde_json::to_writer(&mut output, msg);
+        if output.exceeded {
             anyhow::bail!(
-                "native message is too large: {len} bytes (maximum {MAX_MESSAGE_SIZE})"
+                "native message is too large (maximum {MAX_MESSAGE_SIZE} bytes)"
             );
         }
+        serialized.context("serialize message")?;
+
+        let buf = output.bytes;
+        let len = u32::try_from(buf.len()).context("native message length exceeds u32")?;
 
         let mut header = Vec::with_capacity(4);
         WriteBytesExt::write_u32::<NativeEndian>(&mut header, len)?;
@@ -133,6 +160,52 @@ impl StdinReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::pin::Pin;
+    use std::task::{Context as TaskContext, Poll};
+
+    #[derive(Default)]
+    struct RecordingWriter(Vec<u8>);
+
+    impl AsyncWrite for RecordingWriter {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _cx: &mut TaskContext<'_>,
+            bytes: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            let this = self.get_mut();
+            this.0.extend_from_slice(bytes);
+            Poll::Ready(Ok(bytes.len()))
+        }
+
+        fn poll_flush(
+            self: Pin<&mut Self>,
+            _cx: &mut TaskContext<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(
+            self: Pin<&mut Self>,
+            _cx: &mut TaskContext<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn oversized_output_fails_before_writing_any_bytes() {
+        let message = Message::result(
+            crate::types::MessageType::Error,
+            serde_json::Value::String("x".repeat(MAX_MESSAGE_SIZE as usize)),
+        );
+        let mut writer = Writer::new(RecordingWriter::default());
+        let error = writer.write(&message).await.expect_err("oversized output must fail");
+        assert!(
+            error.to_string().contains("too large"),
+            "unexpected error: {error}"
+        );
+        assert!(writer.inner.0.is_empty(), "writer emitted bytes before rejection");
+    }
 
     #[tokio::test]
     async fn empty_input_is_clean_eof() {
@@ -150,6 +223,10 @@ mod tests {
     async fn oversized_message_is_rejected_before_reading_payload() {
         let header = (MAX_MESSAGE_SIZE + 1).to_ne_bytes();
         let mut reader = Reader::new(&header[..]);
-        assert!(reader.read().await.is_err());
+        let error = reader.read().await.expect_err("oversized frame must fail");
+        assert!(
+            error.to_string().contains("too large"),
+            "unexpected error: {error}"
+        );
     }
 }

@@ -52,7 +52,7 @@ pub async fn open_connection() -> Result<Connection> {
 // Device enumeration
 // ---------------------------------------------------------------------------
 
-/// Fetch all known (including unreachable) paired device IDs.
+/// Fetch currently reachable, paired device IDs visible to KDE Connect.
 pub async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
     let reply = conn
         .call_method(
@@ -60,7 +60,7 @@ pub async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
             BASE_PATH,
             Some("org.kde.kdeconnect.daemon"),
             "devices",
-            &(false, true),
+            &(true, true),
         )
         .await
         .context("call devices()")?;
@@ -148,7 +148,7 @@ async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
 // Device list builder
 // ---------------------------------------------------------------------------
 
-/// Enumerate known devices and fetch their current properties.
+/// Enumerate visible reachable devices and fetch their current properties.
 pub async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
     let ids = list_device_ids(conn).await?;
     let mut devices = Vec::with_capacity(ids.len());
@@ -312,7 +312,7 @@ fn signal_action(iface: Option<&str>, member: Option<&str>) -> SignalAction {
     if iface == Some(DAEMON_IFACE) {
         SignalAction::Resync
     } else if iface == Some(DEVICE_IFACE) {
-        if member == Some("pairStateChanged") {
+        if member == Some("pairStateChanged") || member == Some("reachableChanged") {
             SignalAction::Resync
         } else {
             SignalAction::Refresh
@@ -509,6 +509,26 @@ mod tests {
         assert_eq!(json.as_object().expect("object").len(), 2);
     }
 
+    #[tokio::test]
+    async fn snapshot_waits_for_locked_device_instead_of_dropping_it() {
+        let locked = shared(device("locked", "Phone"));
+        let devices = vec![locked.clone()];
+        let guard = locked.lock().await;
+
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _ = started_tx.send(());
+            devices_snapshot(&devices).await
+        });
+        started_rx.await.expect("snapshot task started");
+        tokio::task::yield_now().await;
+        assert!(!task.is_finished(), "snapshot should wait for the held device lock");
+
+        drop(guard);
+        let json = task.await.expect("snapshot task");
+        assert_eq!(json["locked"]["name"], "Phone");
+    }
+
     #[test]
     fn daemon_signals_resync() {
         assert_eq!(
@@ -534,9 +554,17 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_device_signals_refresh() {
+    fn reachable_changes_resync_visible_devices() {
         assert_eq!(
             signal_action(Some(DEVICE_IFACE), Some("reachableChanged")),
+            SignalAction::Resync
+        );
+    }
+
+    #[test]
+    fn ordinary_device_signals_refresh() {
+        assert_eq!(
+            signal_action(Some(DEVICE_IFACE), Some("nameChanged")),
             SignalAction::Refresh
         );
     }
