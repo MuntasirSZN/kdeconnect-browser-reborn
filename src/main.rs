@@ -309,6 +309,80 @@ async fn handle_message(
     Ok(())
 }
 
+/// Decode standard base64 (`A-Za-z0-9+/`) to raw bytes.
+///
+/// Tolerates whitespace and padding; rejects characters outside the alphabet.
+fn base64_decode(input: &str) -> Result<Vec<u8>> {
+    fn value(c: u8) -> Result<u8> {
+        match c {
+            b'A'..=b'Z' => Ok(c - b'A'),
+            b'a'..=b'z' => Ok(c - b'a' + 26),
+            b'0'..=b'9' => Ok(c - b'0' + 52),
+            b'+' => Ok(62),
+            b'/' => Ok(63),
+            _ => anyhow::bail!("invalid base64 character: {}", c as char),
+        }
+    }
+
+    let data: Vec<u8> = input
+        .bytes()
+        .filter(|b| !b.is_ascii_whitespace() && *b != b'=')
+        .collect();
+    let mut out = Vec::with_capacity(data.len() * 3 / 4);
+    for chunk in data.chunks(4) {
+        let v: Vec<u8> = chunk
+            .iter()
+            .map(|&c| value(c))
+            .collect::<Result<Vec<u8>>>()?;
+        if v.len() < 2 {
+            anyhow::bail!("invalid base64 input: truncated group");
+        }
+        out.push((v[0] << 2) | (v[1] >> 4));
+        if v.len() >= 3 {
+            out.push(((v[1] & 0x0f) << 4) | (v[2] >> 2));
+        }
+        if v.len() == 4 {
+            out.push(((v[2] & 0x03) << 6) | v[3]);
+        }
+    }
+    Ok(out)
+}
+
+/// Write the base64 image data sent by the extension to a temp file and
+/// return its `file://` URL.
+///
+/// KDE Connect's share plugin shares local files via their `file://` URL
+/// (`SharePlugin::shareUrl` in kdeconnect-kde sends a payload when the URL
+/// is a local file), so handing it a real file is how images reach the phone.
+fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
+    let data = share.image_data.as_deref().unwrap_or_default();
+    let bytes = base64_decode(data).context("decode imageData")?;
+    if bytes.is_empty() {
+        anyhow::bail!("imageData is empty");
+    }
+
+    let ext = share
+        .url
+        .split('?')
+        .next()
+        .and_then(|path| path.rsplit('.').next())
+        .filter(|ext| {
+            !ext.is_empty()
+                && ext.len() <= 4
+                && ext.bytes().all(|b| b.is_ascii_alphanumeric())
+        })
+        .map(|ext| ext.to_lowercase())
+        .unwrap_or_else(|| "png".to_owned());
+
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .context("read clock")?
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("kdeconnect-share-{}-{}.{}", share.target, nanos, ext));
+    std::fs::write(&path, bytes).with_context(|| format!("write image file {}", path.display()))?;
+    Ok(format!("file://{}", path.display()))
+}
+
 async fn handle_share(
     conn: &zbus::Connection,
     devices: &Arc<Mutex<Vec<SharedDevice>>>,
@@ -320,7 +394,15 @@ async fn handle_share(
         .and_then(|d| serde_json::from_value(d.clone()).ok())
         .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
 
-    if !is_shareable_url(&share.url) {
+    // The extension sends the image bytes directly for image context clicks —
+    // KDE Connect shares local files via their file:// URL, so write the data
+    // to a temp file and share that instead of the link.
+    let url = match share.image_data.is_some() {
+        true => write_image_to_temp(&share)?,
+        false => share.url.clone(),
+    };
+
+    if share.image_data.is_none() && !is_shareable_url(&url) {
         anyhow::bail!("unsupported URL scheme; only http and https URLs can be shared");
     }
 
@@ -340,7 +422,7 @@ async fn handle_share(
         Some(d) => {
             let state = d.lock().await;
             dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
-            dbus::share_url(conn, &state.device.id, &share.url).await?;
+            dbus::share_url(conn, &state.device.id, &url).await?;
         }
         None => anyhow::bail!("unknown device: {}", share.target),
     }
@@ -365,6 +447,41 @@ mod tests {
         assert!(!is_shareable_url("javascript:alert(1)"));
         assert!(!is_shareable_url("file:///etc/passwd"));
         assert!(!is_shareable_url("chrome://settings"));
+    }
+
+    #[test]
+    fn base64_decode_known_values() {
+        assert_eq!(base64_decode("aGVsbG8=").unwrap(), b"hello");
+        assert_eq!(base64_decode("QQ==").unwrap(), b"A");
+        assert_eq!(
+            base64_decode("ZmFrZSBpbWFnZSBieXRlcw==").unwrap(),
+            b"fake image bytes"
+        );
+        assert!(base64_decode("").unwrap().is_empty());
+    }
+
+    #[test]
+    fn base64_decode_rejects_invalid_input() {
+        assert!(base64_decode("!!!").is_err());
+        assert!(base64_decode("a").is_err());
+    }
+
+    #[test]
+    fn write_image_to_temp_writes_the_file_and_returns_file_url() {
+        let share = ShareRequest {
+            target: "dev1".into(),
+            url: "https://example.com/photo.jpg".into(),
+            image_data: Some("ZmFrZSBpbWFnZSBieXRlcw==".into()),
+        };
+        let url = write_image_to_temp(&share).expect("write image file");
+        assert!(url.starts_with("file://"));
+        let path = url.strip_prefix("file://").expect("file url");
+        assert_eq!(
+            std::fs::read(path).expect("read image file"),
+            b"fake image bytes"
+        );
+        assert!(path.ends_with(".jpg"));
+        std::fs::remove_file(path).ok();
     }
 
     #[tokio::test]

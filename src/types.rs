@@ -64,6 +64,11 @@ pub enum MessageType {
 pub struct ShareRequest {
     pub target: String,
     pub url: String,
+    /// Base64-encoded image bytes, sent for image context clicks. When present,
+    /// the host writes the data to a temp file and shares that instead of the
+    /// URL — KDE Connect shares local files via their `file://` URL.
+    #[serde(default, rename = "imageData")]
+    pub image_data: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
