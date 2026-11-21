@@ -11,13 +11,9 @@ use futures_util::StreamExt;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 use zbus::Connection;
-use zbus::zvariant::OwnedVariant;
+use zbus::wire::OwnedVariant;
 
 use crate::types::{Device, Empty, Message, MessageType};
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 pub(crate) const DEST: &str = "org.kde.kdeconnect";
 pub(crate) const BASE_PATH: &str = "/modules/kdeconnect";
@@ -25,10 +21,6 @@ pub(crate) const PLUGIN_SHARE: &str = "kdeconnect_share";
 pub(crate) const DAEMON_IFACE: &str = "org.kde.kdeconnect.daemon";
 
 const DEVICE_IFACE: &str = "org.kde.kdeconnect.device";
-
-// ---------------------------------------------------------------------------
-// Shared device
-// ---------------------------------------------------------------------------
 
 /// Thread-safe handle to a device's mutable state.
 pub(crate) type SharedDevice = Arc<Mutex<DeviceState>>;
@@ -39,18 +31,10 @@ pub(crate) struct DeviceState {
     pub object_path: String,
 }
 
-// ---------------------------------------------------------------------------
-// Connection management
-// ---------------------------------------------------------------------------
-
 /// Open a session-bus connection.
 pub(crate) async fn open_connection() -> Result<Connection> {
     Connection::session().await.context("open session bus")
 }
-
-// ---------------------------------------------------------------------------
-// Device enumeration
-// ---------------------------------------------------------------------------
 
 /// Fetch currently reachable, paired device IDs visible to KDE Connect.
 pub(crate) async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
@@ -71,10 +55,6 @@ pub(crate) async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
         .context("deserialize device id list")?;
     Ok(ids)
 }
-
-// ---------------------------------------------------------------------------
-// D-Bus property helpers
-// ---------------------------------------------------------------------------
 
 /// Deserialize a D-Bus property via the value's JSON representation.
 ///
@@ -144,10 +124,6 @@ async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
     Ok(Device::from_props(id, &props))
 }
 
-// ---------------------------------------------------------------------------
-// Device list builder
-// ---------------------------------------------------------------------------
-
 /// Enumerate visible reachable devices and fetch their current properties.
 pub(crate) async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
     let ids = list_device_ids(conn).await?;
@@ -185,26 +161,13 @@ pub(crate) async fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Va
         .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::default()))
 }
 
-// ---------------------------------------------------------------------------
-// Device property refresh
-// ---------------------------------------------------------------------------
-
 /// Re-read every serializable property on a device and update in place.
 pub(crate) async fn refresh_device(conn: &Connection, state: &DeviceState) -> Result<Device> {
     let dev = fetch_device(conn, &state.device.id).await?;
     Ok(dev)
 }
 
-// ---------------------------------------------------------------------------
-// Share a URL
-// ---------------------------------------------------------------------------
-
 /// Send a URL to a device via the `kdeconnect_share` plugin.
-///
-/// This replicates the Go call chain:
-///    1. Check plugin support (caller should have validated).
-///    2. Check reachable & trusted (caller should have validated).
-///    3. Call `shareUrl` on `/modules/kdeconnect/devices/{id}/share`.
 pub(crate) async fn share_url(conn: &Connection, device_id: &str, url: &str) -> Result<()> {
     let share_path = format!("{BASE_PATH}/devices/{device_id}/share");
     conn.call_method(
@@ -219,10 +182,6 @@ pub(crate) async fn share_url(conn: &Connection, device_id: &str, url: &str) -> 
 
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// Device capability check
-// ---------------------------------------------------------------------------
 
 /// Check whether a device currently supports a plugin, is reachable, and is
 /// trusted — matching the Go `Device.supported()` logic.
@@ -239,10 +198,6 @@ pub(crate) fn check_capability(state: &DeviceState, plugin: &str) -> Result<()> 
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// D-Bus match rules for device signals
-// ---------------------------------------------------------------------------
 
 // Signals emitted by `org.kde.kdeconnect.device`.  Unlisted signals never
 // reach us: D-Bus only delivers members with a matching AddMatch rule.
@@ -290,10 +245,6 @@ pub(crate) async fn add_daemon_match_rules(conn: &Connection) -> Result<()> {
     .context("AddMatch(daemon signals)")?;
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// Signal listener
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, PartialEq)]
 enum SignalAction {

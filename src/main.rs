@@ -51,16 +51,8 @@ use dbus::SharedDevice;
 use messaging::{Reader, Writer};
 use types::{Message, MessageType, ShareRequest};
 
-// ---------------------------------------------------------------------------
-// Constants (matching Go's protocol/cli versions)
-// ---------------------------------------------------------------------------
-
 const PROTOCOL_VERSION: &str = "0.1.3";
 const CLI_VERSION: &str = "0.1.7";
-
-// ---------------------------------------------------------------------------
-// CLI
-// ---------------------------------------------------------------------------
 
 #[derive(Parser)]
 #[command(
@@ -96,10 +88,6 @@ struct Cli {
     browser_args: Vec<String>,
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
 #[tokio::main(flavor = "current_thread")]
 #[expect(
     clippy::print_stdout,
@@ -130,7 +118,6 @@ async fn main() -> Result<()> {
         return install::install(cli.dev).context("installation failed");
     }
 
-    // ---- D-Bus connection (required for --devices and daemon mode) ----
     let conn = match dbus::open_connection().await {
         Ok(c) => c,
         Err(e) => {
@@ -164,13 +151,8 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // ---- Default: native messaging daemon ----
     run_daemon(conn, devices).await
 }
-
-// ---------------------------------------------------------------------------
-// Daemon mode
-// ---------------------------------------------------------------------------
 
 async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Result<()> {
     info!(count = devices.len(), "devices discovered");
@@ -188,14 +170,11 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
 
     let devices = Arc::new(Mutex::new(devices));
 
-    // ---- Channels ----
     // Outbound: signal handlers & request responses → stdout.
     let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
 
-    // ---- Spawn signal listener (D-Bus signals → output_tx) ----
     let signal_task = dbus::spawn_signal_listener(conn.clone(), devices.clone(), output_tx.clone());
 
-    // ---- Stdout writer task ----
     let mut writer = Writer::stdout();
     let stdout_handle = tokio::spawn(async move {
         while let Some(msg) = output_rx.recv().await {
@@ -216,7 +195,6 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
         }
     });
 
-    // ---- Stdin reader (main loop) ----
     let mut reader = Reader::stdin();
     loop {
         let msg = match read_input_or_output_closed(&mut reader, &output_tx).await {
@@ -242,7 +220,6 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
         }
     }
 
-    // ---- Cleanup ----
     // The listener holds a sender clone; stopping it lets the writer drain and
     // finish instead of waiting forever.
     drop(output_tx);
@@ -276,10 +253,6 @@ where
         result = reader.read() => InputEvent::Read(result),
     }
 }
-
-// ---------------------------------------------------------------------------
-// Message dispatch
-// ---------------------------------------------------------------------------
 
 /// Tell the extension why the host cannot run, before exiting.  Failures to
 /// write are ignored — stderr already carries the error.

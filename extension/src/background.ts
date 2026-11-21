@@ -14,16 +14,8 @@ import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./r
 import type { RetryState } from "./reconnect.js";
 import { shareRequest } from "./share.js";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const HOSTNAME = "com.0xc0dedbad.kdeconnect_chrome";
 const PROTOCOL_VERSION = "0.1.3";
-
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 let port: chrome.runtime.Port | null = null;
 let knownDevices: Record<string, Device> = {};

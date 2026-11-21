@@ -10,18 +10,10 @@ use inquire::{MultiSelect, Text};
 use serde::Serialize;
 use tracing::{info, warn};
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const APP_NAME: &str = "com.0xc0dedbad.kdeconnect_chrome";
 const DEFAULT_EXTENSION_ID: &str = "ofmplbbfigookafjahpeepbggpofdhbo";
 
 const FIREFOX_EXTENSION_ID: &str = "kde-connect@0xc0dedbad.com";
-
-// ---------------------------------------------------------------------------
-// Browser entries
-// ---------------------------------------------------------------------------
 
 /// Browser kind and its display label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,10 +60,6 @@ impl Browser {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Install path resolution
-// ---------------------------------------------------------------------------
-
 /// Resolve the native messaging hosts directory for a given OS, browser, and
 /// privilege level, matching the Go code's `installMappings` table.
 fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
@@ -81,7 +69,6 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
 
     let home = std::env::var("HOME").ok()?;
 
-    // ---- Linux paths ----
     #[cfg(target_os = "linux")]
     {
         let base = xdg_config.unwrap_or_else(|| format!("{home}/.config"));
@@ -112,7 +99,6 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
         Some(PathBuf::from(p))
     }
 
-    // ---- macOS paths ----
     #[cfg(target_os = "macos")]
     {
         let lib = format!("{}/Library/Application Support", home);
@@ -143,17 +129,12 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
         Some(PathBuf::from(p))
     }
 
-    // ---- Other OS (fallback to linux-style) ----
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         let _ = (xdg_config, home, browser, is_root);
         None
     }
 }
-
-// ---------------------------------------------------------------------------
-// Manifest template
-// ---------------------------------------------------------------------------
 
 #[derive(Debug)]
 struct ManifestContext {
@@ -222,10 +203,6 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
     serde_json::to_string_pretty(&manifest).context("serialize native messaging manifest")
 }
 
-// ---------------------------------------------------------------------------
-// Install logic
-// ---------------------------------------------------------------------------
-
 /// Pick the daemon binary to install: the architecture-tagged sibling
 /// (`<exe>-<arch>`) when the running executable lives in a multi-architecture
 /// bundle, otherwise the running executable itself.
@@ -292,22 +269,11 @@ fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()>
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
-
 /// Run the interactive install flow.
-///
-/// Mirrors the Go `install()` function:
-///  1. Determine root/non-root and OS
-///  2. Show browser checkbox menu
-///  3. If developer mode, prompt for extension ID
-///  4. For each selected browser, install
 pub(crate) fn install(developer: bool) -> Result<()> {
     // Matching Go behaviour: check the USER env var (real root has USER=root)
     let is_root = std::env::var("USER").as_deref() == Ok("root");
 
-    // ---- Browser selection ----
     let browser_options: Vec<&str> = Browser::all().iter().copied().map(Browser::label).collect();
     let selections = MultiSelect::new(
         "Select browser(s) for native host installation (Space to select, Enter to confirm)",
@@ -359,7 +325,6 @@ pub(crate) fn install(developer: bool) -> Result<()> {
         anyhow::bail!("invalid Chrome extension ID: expected 32 lowercase characters from a-p");
     }
 
-    // ---- Install for each selected browser ----
     for browser in &chosen {
         if browser == &Browser::Custom {
             if let Some(path) = &custom_path {

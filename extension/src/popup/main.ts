@@ -8,13 +8,7 @@ import { DEVICE_ICONS, typeIcon } from "../icons.js";
 import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
 import { shareRequest } from "../share.js";
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
 let currentUrlPromise: Promise<string | null> | null = null;
-
-// ── Messaging ──────────────────────────────────────────────────────────
 
 function postMessage(msg: Message): void {
   chrome.runtime.sendMessage(msg).catch(() => {

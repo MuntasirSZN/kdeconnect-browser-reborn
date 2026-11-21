@@ -16,10 +16,6 @@ const MAX_MESSAGE_SIZE: u32 = 1024 * 1024;
 
 use crate::types::Message;
 
-// ---------------------------------------------------------------------------
-// Writer
-// ---------------------------------------------------------------------------
-
 /// Collect JSON output without ever allocating beyond the protocol limit.
 #[derive(Default)]
 struct BoundedBuffer {
@@ -82,10 +78,6 @@ impl StdoutWriter {
         Self::new(tokio::io::stdout())
     }
 }
-
-// ---------------------------------------------------------------------------
-// Reader
-// ---------------------------------------------------------------------------
 
 /// Reads length-prefixed JSON `Message` values from a byte stream (stdin).
 pub(crate) struct Reader<R: AsyncRead + Unpin> {

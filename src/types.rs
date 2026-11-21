@@ -6,10 +6,6 @@ use serde::{Serialize, Serializer};
 #[cfg(feature = "ts-export")]
 use ts_rs::TS;
 
-// ---------------------------------------------------------------------------
-// Chrome native messaging protocol types
-// ---------------------------------------------------------------------------
-
 /// Messages exchanged with the browser extension over native messaging.
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
@@ -61,10 +57,6 @@ pub(crate) struct ShareRequest {
     #[serde(default, rename = "imageData")]
     pub image_data: Option<String>,
 }
-
-// ---------------------------------------------------------------------------
-// Device type (wire-compatible with Go serialization)
-// ---------------------------------------------------------------------------
 
 /// An empty JSON object `{}` — matches Go's `map[string]struct{}` which
 /// serialises every key to an empty object rather than `null`.

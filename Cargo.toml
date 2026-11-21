@@ -6,7 +6,7 @@ rust-version = "1.90"
 description = "Native messaging host bridging Chrome/Firefox with KDE Connect via D-Bus"
 repository = "https://github.com/MuntasirSZN/kdeconnect-browser-reborn"
 license = "MIT"
-keywords = ["kdeconnect", "kde", "browser", "native-messaging", "d-bus"]
+keywords = ["browser", "d-bus", "kde", "kdeconnect", "native-messaging"]
 categories = ["command-line-utilities", "development-tools"]
 
 [features]
@@ -85,3 +85,15 @@ clippy.negative_feature_names = "warn"
 clippy.redundant_feature_names = "warn"
 clippy.wildcard_dependencies = "warn"
 # END LINEBENDER LINT SET
+
+clippy.large_include_file = "warn"
+clippy.match_same_arms = "warn"
+clippy.module_name_repetitions = "allow"
+clippy.partial_pub_fields = "warn"
+clippy.pedantic = { level = "warn", priority = -1 }
+clippy.return_self_not_must_use = "warn"
+clippy.shadow_unrelated = "warn"
+rust.let_underscore_drop = "warn"
+rust.single_use_lifetimes = "warn"
+rust.unit_bindings = "warn"
+rust.variant_size_differences = "warn"
