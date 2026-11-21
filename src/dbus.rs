@@ -11,7 +11,7 @@ use futures_util::StreamExt;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 use zbus::Connection;
-use zbus::wire::OwnedVariant;
+use zbus::OwnedVariant;
 
 use crate::types::{Device, Empty, Message, MessageType};
 
@@ -198,7 +198,7 @@ pub(crate) fn check_capability(state: &DeviceState, plugin: &str) -> Result<()> 
     Ok(())
 }
 
-// Signals emitted by `org.kde.kdeconnect.device`.  Unlisted signals never
+// Signals emitted by `org.kde.kdeconnect.device`. Unlisted signals never
 // reach us: D-Bus only delivers members with a matching AddMatch rule.
 const SIGNAL_MEMBERS: &[&str] = &[
     "reachableChanged",
