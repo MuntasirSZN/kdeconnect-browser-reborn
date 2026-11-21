@@ -84,7 +84,6 @@ Every PR must keep the full suite above green. Prefer running
   can reproduce or verify the change.
 - If a change touches user-facing UI, mention how you verified it (browser
   manual checks count).
-- Update `THIRD_PARTY_NOTICES.md` when you add new dependencies.
 
 ## Docs
 
