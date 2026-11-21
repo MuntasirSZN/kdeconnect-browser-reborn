@@ -3,11 +3,11 @@
  */
 
 import { createIcons } from "lucide";
-import type { Device, Message } from "../generated/types.js";
-import type { StatusData } from "../shared-types.js";
-import { DEVICE_ICONS, typeIcon } from "../icons.js";
-import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
-import { shareRequest } from "../share.js";
+import type { Device, Message } from "../generated/types";
+import type { StatusData } from "../shared-types";
+import { DEVICE_ICONS, typeIcon } from "../icons";
+import { applyMessage, knownDevices, renderDeviceList } from "../device-list";
+import { shareRequest } from "../share";
 
 let currentUrlPromise: Promise<string | null> | null = null;
 

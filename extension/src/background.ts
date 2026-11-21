@@ -6,14 +6,14 @@
  * messages between the native host and popup/options views.
  */
 
-import type { Device, Message } from "./generated/types.js";
-import type { ExtensionOptions } from "./shared-types.js";
-import { getStoredOptions } from "./options.js";
-import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
-import type { MenuStrings } from "./menus.js";
-import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect.js";
-import type { RetryState } from "./reconnect.js";
-import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "./share.js";
+import type { Device, Message } from "./generated/types";
+import type { ExtensionOptions } from "./shared-types";
+import { getStoredOptions } from "./options";
+import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus";
+import type { MenuStrings } from "./menus";
+import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect";
+import type { RetryState } from "./reconnect";
+import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "./share";
 
 const HOSTNAME = "com.0xc0dedbad.kdeconnect_chrome";
 const PROTOCOL_VERSION = "0.1.4";

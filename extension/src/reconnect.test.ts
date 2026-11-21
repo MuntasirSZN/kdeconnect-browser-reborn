@@ -5,7 +5,7 @@ import {
   markHandshake,
   nextRetryDelay,
   resetRetry,
-} from "./reconnect.js";
+} from "./reconnect";
 
 describe("reconnect policy", () => {
   test("never retries without a handshake", () => {

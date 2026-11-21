@@ -1,6 +1,6 @@
-import type { Device } from "./generated/types.js";
-import type { ExtensionOptions } from "./shared-types.js";
-import { deviceMenuIcon } from "./icons.js";
+import type { Device } from "./generated/types";
+import type { ExtensionOptions } from "./shared-types";
+import { deviceMenuIcon } from "./icons";
 
 export type MenuAction = "open-link" | "open-page" | "call" | "open-tab";
 

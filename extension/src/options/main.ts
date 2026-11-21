@@ -3,9 +3,9 @@
  */
 
 import { Check, createIcons } from "lucide";
-import type { Message } from "../generated/types.js";
-import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
-import { getStoredOptions } from "../options.js";
+import type { Message } from "../generated/types";
+import { applyMessage, knownDevices, renderDeviceList } from "../device-list";
+import { getStoredOptions } from "../options";
 
 let defaultDeviceId: string | null = null;
 let saveStatusTimeout: ReturnType<typeof setTimeout> | null = null;

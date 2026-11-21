@@ -1,4 +1,4 @@
-import type { Device } from "./generated/types.js";
+import type { Device } from "./generated/types";
 
 /**
  * Device state shared by the popup and the options page, keyed by device ID.

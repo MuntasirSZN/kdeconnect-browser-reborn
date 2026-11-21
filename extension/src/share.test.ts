@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_IMAGE_BYTES, imageBytesAllowed, shareRequest, wantsImageData } from "./share.js";
+import { MAX_IMAGE_BYTES, imageBytesAllowed, shareRequest, wantsImageData } from "./share";
 
 describe("shareRequest", () => {
   test("carries a unique correlation id", () => {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { Device } from "./generated/types.js";
-import type { ExtensionOptions } from "./shared-types.js";
-import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
-import { deviceMenuIcon } from "./icons.js";
+import type { Device } from "./generated/types";
+import type { ExtensionOptions } from "./shared-types";
+import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus";
+import { deviceMenuIcon } from "./icons";
 
 const strings = {
   open: (name: string) => `Open on '${name}'`,

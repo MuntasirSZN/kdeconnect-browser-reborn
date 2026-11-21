@@ -1,4 +1,4 @@
-import type { Message } from "./generated/types.js";
+import type { Message } from "./generated/types";
 
 /**
  * Maximum image size, in raw bytes, transferred through one native message.

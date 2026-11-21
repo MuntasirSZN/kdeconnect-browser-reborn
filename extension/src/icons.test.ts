@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { typeIcon } from "./icons.js";
+import { typeIcon } from "./icons";
 
 test("maps KDE Connect types to Lucide names", () => {
   expect(typeIcon("phone")).toBe("smartphone");
