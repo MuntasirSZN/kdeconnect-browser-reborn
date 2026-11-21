@@ -63,34 +63,34 @@ impl Browser {
 /// Resolve the native messaging hosts directory for a given OS, browser, and
 /// privilege level, matching the Go code's `installMappings` table.
 fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
-    let xdg_config = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|s| !s.is_empty());
-
-    let home = std::env::var("HOME").ok()?;
-
     #[cfg(target_os = "linux")]
     {
-        let base = xdg_config.unwrap_or_else(|| format!("{home}/.config"));
+        let base = dirs::config_dir()?;
         let (user_path, root_path): (&str, &str) = match browser {
             "default" | "chrome" => (
-                &format!("{base}/google-chrome/NativeMessagingHosts"),
+                &format!("{}/google-chrome/NativeMessagingHosts", base.display()),
                 "/etc/opt/chrome/native-messaging-hosts",
             ),
             "chromium" => (
-                &format!("{base}/chromium/NativeMessagingHosts"),
+                &format!("{}/chromium/NativeMessagingHosts", base.display()),
                 "/etc/chromium/native-messaging-hosts",
             ),
             "brave" => (
-                &format!("{base}/BraveSoftware/Brave-Browser/NativeMessagingHosts"),
+                &format!(
+                    "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+                    base.display()
+                ),
                 "/etc/chromium/native-messaging-hosts",
             ),
             "vivaldi" => (
-                &format!("{base}/vivaldi/NativeMessagingHosts"),
+                &format!("{}/vivaldi/NativeMessagingHosts", base.display()),
                 "/etc/vivaldi/native-messaging-hosts",
             ),
             "firefox" => (
-                &format!("{home}/.mozilla/native-messaging-hosts"),
+                &format!(
+                    "{}/.mozilla/native-messaging-hosts",
+                    dirs::home_dir()?.display()
+                ),
                 "/usr/lib/mozilla/native-messaging-hosts",
             ),
             _ => return None,
@@ -101,26 +101,29 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
-        let lib = format!("{}/Library/Application Support", home);
+        let lib = dirs::config_dir()?;
         let (user_path, root_path): (&str, &str) = match browser {
             "default" | "chrome" => (
-                &format!("{}/Google/Chrome/NativeMessagingHosts", lib),
+                &format!("{}/Google/Chrome/NativeMessagingHosts", lib.display()),
                 "/Library/Google/Chrome/NativeMessagingHosts",
             ),
             "chromium" => (
-                &format!("{}/Chromium/NativeMessagingHosts", lib),
+                &format!("{}/Chromium/NativeMessagingHosts", lib.display()),
                 "/Library/Application Support/Chromium/NativeMessagingHosts",
             ),
             "brave" => (
-                &format!("{}/BraveSoftware/Brave-Browser/NativeMessagingHosts", lib),
+                &format!(
+                    "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+                    lib.display()
+                ),
                 "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
             ),
             "vivaldi" => (
-                &format!("{}/Vivaldi/NativeMessagingHosts", lib),
+                &format!("{}/Vivaldi/NativeMessagingHosts", lib.display()),
                 "/Library/Vivaldi/NativeMessagingHosts",
             ),
             "firefox" => (
-                &format!("{}/Mozilla/NativeMessagingHosts", lib),
+                &format!("{}/Mozilla/NativeMessagingHosts", lib.display()),
                 "/Library/Application Support/Mozilla/NativeMessagingHosts",
             ),
             _ => return None,
@@ -131,7 +134,7 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
-        let _ = (xdg_config, home, browser, is_root);
+        let _ = (browser, is_root);
         None
     }
 }

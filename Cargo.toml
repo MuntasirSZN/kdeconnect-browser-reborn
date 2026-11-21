@@ -18,6 +18,7 @@ anyhow = "1"
 base64 = "0.23.1"
 byteorder = "1"
 clap = { version = "4", features = ["derive"] }
+dirs = "7.0.0"
 futures-util = "0.3"
 inquire = "0.9"
 serde = { version = "1", features = ["derive"] }
@@ -56,6 +57,10 @@ rust.unused_import_braces = "warn"
 rust.unused_lifetimes = "warn"
 rust.unused_macro_rules = "warn"
 rust.unused_qualifications = "warn"
+rust.let_underscore_drop = "warn"
+rust.single_use_lifetimes = "warn"
+rust.unit_bindings = "warn"
+rust.variant_size_differences = "warn"
 
 clippy.too_many_arguments = "allow"
 
@@ -93,7 +98,3 @@ clippy.partial_pub_fields = "warn"
 clippy.pedantic = { level = "warn", priority = -1 }
 clippy.return_self_not_must_use = "warn"
 clippy.shadow_unrelated = "warn"
-rust.let_underscore_drop = "warn"
-rust.single_use_lifetimes = "warn"
-rust.unit_bindings = "warn"
-rust.variant_size_differences = "warn"
