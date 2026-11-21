@@ -226,23 +226,16 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
 // Install logic
 // ---------------------------------------------------------------------------
 
-/// Architecture tag for daemon binaries (e.g. `x86_64`, `aarch64`).
-///
-/// Used to pick the right binary from a multi-architecture release bundle.
-fn arch_tag() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "aarch64",
-        "x86_64" => "x86_64",
-        other => other,
-    }
-}
-
 /// Pick the daemon binary to install: the architecture-tagged sibling
 /// (`<exe>-<arch>`) when the running executable lives in a multi-architecture
 /// bundle, otherwise the running executable itself.
 fn pick_daemon_binary(exe: &Path) -> PathBuf {
     if let Some(stem) = exe.file_stem() {
-        let tagged = exe.with_file_name(format!("{}-{}", stem.to_string_lossy(), arch_tag()));
+        let tagged = exe.with_file_name(format!(
+            "{}-{}",
+            stem.to_string_lossy(),
+            std::env::consts::ARCH
+        ));
         if tagged.is_file() {
             return tagged;
         }
@@ -425,21 +418,15 @@ mod tests {
         assert!(!is_valid_chrome_extension_id("q".repeat(32).as_str()));
     }
 
-    #[test]
-    fn arch_tag_matches_current_platform() {
-        match std::env::consts::ARCH {
-            "aarch64" => assert_eq!(arch_tag(), "aarch64"),
-            "x86_64" => assert_eq!(arch_tag(), "x86_64"),
-            other => assert_eq!(arch_tag(), other),
-        }
-    }
-
     /// Create a `<dir>/kdeconnect-browser-reborn` test binary.
     fn fake_exe(dir: &Path, with_tagged_sibling: bool) -> PathBuf {
         let exe = dir.join("kdeconnect-browser-reborn");
         std::fs::write(&exe, b"#!/bin/sh\n").expect("write test exe");
         if with_tagged_sibling {
-            let tagged = dir.join(format!("kdeconnect-browser-reborn-{}", arch_tag()));
+            let tagged = dir.join(format!(
+                "kdeconnect-browser-reborn-{}",
+                std::env::consts::ARCH
+            ));
             std::fs::write(&tagged, b"#!/bin/sh\n").expect("write tagged sibling");
         }
         exe
@@ -451,7 +438,10 @@ mod tests {
             std::env::temp_dir().join(format!("kdeconnect-install-tag-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let exe = fake_exe(&dir, true);
-        let tagged = dir.join(format!("kdeconnect-browser-reborn-{}", arch_tag()));
+        let tagged = dir.join(format!(
+            "kdeconnect-browser-reborn-{}",
+            std::env::consts::ARCH
+        ));
         assert_eq!(pick_daemon_binary(&exe), tagged);
         std::fs::remove_dir_all(&dir).ok();
     }

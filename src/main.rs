@@ -24,9 +24,9 @@ use tracing_subscriber::EnvFilter;
 // The `Simd` engine is only exported on x86_64/aarch64; elsewhere we fall
 // back to the scalar standard engine.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-use base64::engine::general_purpose::GeneralPurposeConfig;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use base64::engine::Simd;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use base64::engine::general_purpose::GeneralPurposeConfig;
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 
@@ -353,9 +353,7 @@ fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
         .next()
         .and_then(|path| path.rsplit('.').next())
         .filter(|ext| {
-            !ext.is_empty()
-                && ext.len() <= 4
-                && ext.bytes().all(|b| b.is_ascii_alphanumeric())
+            !ext.is_empty() && ext.len() <= 4 && ext.bytes().all(|b| b.is_ascii_alphanumeric())
         })
         .map(|ext| ext.to_lowercase())
         .unwrap_or_else(|| "png".to_owned());
@@ -364,7 +362,10 @@ fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .context("read clock")?
         .as_nanos();
-    let path = std::env::temp_dir().join(format!("kdeconnect-share-{}-{}.{}", share.target, nanos, ext));
+    let path = std::env::temp_dir().join(format!(
+        "kdeconnect-share-{}-{}.{}",
+        share.target, nanos, ext
+    ));
     std::fs::write(&path, bytes).with_context(|| format!("write image file {}", path.display()))?;
     Ok(format!("file://{}", path.display()))
 }
