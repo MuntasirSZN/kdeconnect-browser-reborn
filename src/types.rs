@@ -80,12 +80,16 @@ impl Serialize for Empty {
 pub(crate) struct Device {
     pub id: String,
     #[serde(rename = "type")]
-    pub device_type: String,
+    pub kind: String,
     pub name: String,
     pub icon_name: String,
     pub status_icon_name: String,
     pub is_reachable: bool,
     pub is_trusted: bool,
+    #[expect(
+        clippy::zero_sized_map_values,
+        reason = "the set of plugin names is modelled as an object map over the zero-sized marker type; a real set would change the extension wire format"
+    )]
     pub supported_plugins: HashMap<String, Empty>,
 }
 
@@ -125,7 +129,7 @@ impl Device {
 
         Self {
             id: id.to_owned(),
-            device_type: string("type"),
+            kind: string("type"),
             name: if name.is_empty() {
                 "Unknown device".to_owned()
             } else {
@@ -168,7 +172,7 @@ mod tests {
         let d = Device::from_props("dev1", &sample());
         assert_eq!(d.id, "dev1");
         assert_eq!(d.name, "Pixel 9");
-        assert_eq!(d.device_type, "phone");
+        assert_eq!(d.kind, "phone");
         assert_eq!(d.icon_name, "smartphone");
         assert_eq!(d.status_icon_name, "smartphoneconnected");
         assert!(d.is_reachable);
@@ -204,7 +208,7 @@ mod tests {
     fn missing_optional_props_get_defaults() {
         let d = Device::from_props("dev1", &props(serde_json::json!({})));
         assert_eq!(d.name, "Unknown device");
-        assert_eq!(d.device_type, "");
+        assert_eq!(d.kind, "");
         assert_eq!(d.icon_name, "");
         assert_eq!(d.status_icon_name, "");
         assert!(!d.is_reachable);

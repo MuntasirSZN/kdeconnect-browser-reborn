@@ -54,6 +54,10 @@ use types::{Message, MessageType, ShareRequest};
 const PROTOCOL_VERSION: &str = "0.1.3";
 const CLI_VERSION: &str = "0.1.7";
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "four boolean mode flags; each gates a distinct exit path"
+)]
 #[derive(Parser)]
 #[command(
     name = "kdeconnect-browser-reborn",
@@ -436,12 +440,12 @@ mod tests {
         };
         assert!(write_image_to_temp(&share).is_err());
 
-        let share = ShareRequest {
+        let share_without_data = ShareRequest {
             target: "dev1".into(),
             url: "https://example.com/photo.jpg".into(),
             image_data: None,
         };
-        assert!(write_image_to_temp(&share).is_err());
+        assert!(write_image_to_temp(&share_without_data).is_err());
     }
 
     #[test]
@@ -458,7 +462,7 @@ mod tests {
             std::fs::read(path).expect("read image file"),
             b"fake image bytes"
         );
-        assert!(path.ends_with(".jpg"));
+        assert_eq!(path.rsplit('.').next(), Some("jpg"));
         std::fs::remove_file(path).ok();
     }
 

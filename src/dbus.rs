@@ -140,7 +140,6 @@ pub(crate) async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevi
             }
             Err(e) => {
                 warn!(device = %id, error = %e, "failed to fetch device properties, skipping");
-                continue;
             }
         }
     }
@@ -343,7 +342,7 @@ pub(crate) fn spawn_signal_listener(
             };
 
             match signal_action(iface.as_deref(), member.as_deref()) {
-                SignalAction::Ignore => continue,
+                SignalAction::Ignore => {}
                 SignalAction::Resync => resync_devices(&conn, &devices, &output_tx).await,
                 SignalAction::Refresh => {
                     let (Some(path), Some(member)) = (path, member) else {
@@ -378,9 +377,8 @@ async fn handle_signal(
         }
     }
 
-    let dev_arc = match device_arc {
-        Some(d) => d,
-        None => return Ok(()), // not one of our watched devices
+    let Some(dev_arc) = device_arc else {
+        return Ok(()); // not one of our watched devices
     };
 
     let mut state = dev_arc.lock().await;
@@ -397,7 +395,7 @@ async fn handle_signal(
         }
         "typeChanged" => {
             let v = get_prop_raw(conn, &state.object_path, "type").await?;
-            state.device.device_type = owned_value_to_json(&v)?;
+            state.device.kind = owned_value_to_json(&v)?;
         }
         "statusIconNameChanged" => {
             let v = get_prop_raw(conn, &state.object_path, "statusIconName").await?;
@@ -428,10 +426,14 @@ async fn handle_signal(
 mod tests {
     use super::*;
 
+    #[expect(
+        clippy::zero_sized_map_values,
+        reason = "test helper builds the map like Device::supported_plugins"
+    )]
     fn device(id: &str, name: &str) -> Device {
         Device {
             id: id.into(),
-            device_type: "phone".into(),
+            kind: "phone".into(),
             name: name.into(),
             icon_name: String::new(),
             status_icon_name: String::new(),
