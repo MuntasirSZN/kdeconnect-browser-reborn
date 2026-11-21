@@ -13,6 +13,7 @@ ts-export = ["dep:ts-rs"]
 
 [dependencies]
 anyhow = "1"
+base64 = "0.23.1"
 byteorder = "1"
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"

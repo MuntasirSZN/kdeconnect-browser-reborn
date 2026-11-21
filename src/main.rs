@@ -15,6 +15,8 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+use base64::Engine;
 use clap::Parser;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
@@ -309,45 +311,6 @@ async fn handle_message(
     Ok(())
 }
 
-/// Decode standard base64 (`A-Za-z0-9+/`) to raw bytes.
-///
-/// Tolerates whitespace and padding; rejects characters outside the alphabet.
-fn base64_decode(input: &str) -> Result<Vec<u8>> {
-    fn value(c: u8) -> Result<u8> {
-        match c {
-            b'A'..=b'Z' => Ok(c - b'A'),
-            b'a'..=b'z' => Ok(c - b'a' + 26),
-            b'0'..=b'9' => Ok(c - b'0' + 52),
-            b'+' => Ok(62),
-            b'/' => Ok(63),
-            _ => anyhow::bail!("invalid base64 character: {}", c as char),
-        }
-    }
-
-    let data: Vec<u8> = input
-        .bytes()
-        .filter(|b| !b.is_ascii_whitespace() && *b != b'=')
-        .collect();
-    let mut out = Vec::with_capacity(data.len() * 3 / 4);
-    for chunk in data.chunks(4) {
-        let v: Vec<u8> = chunk
-            .iter()
-            .map(|&c| value(c))
-            .collect::<Result<Vec<u8>>>()?;
-        if v.len() < 2 {
-            anyhow::bail!("invalid base64 input: truncated group");
-        }
-        out.push((v[0] << 2) | (v[1] >> 4));
-        if v.len() >= 3 {
-            out.push(((v[1] & 0x0f) << 4) | (v[2] >> 2));
-        }
-        if v.len() == 4 {
-            out.push(((v[2] & 0x03) << 6) | v[3]);
-        }
-    }
-    Ok(out)
-}
-
 /// Write the base64 image data sent by the extension to a temp file and
 /// return its `file://` URL.
 ///
@@ -356,7 +319,7 @@ fn base64_decode(input: &str) -> Result<Vec<u8>> {
 /// is a local file), so handing it a real file is how images reach the phone.
 fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
     let data = share.image_data.as_deref().unwrap_or_default();
-    let bytes = base64_decode(data).context("decode imageData")?;
+    let bytes = BASE64_ENGINE.decode(data).context("decode imageData")?;
     if bytes.is_empty() {
         anyhow::bail!("imageData is empty");
     }
@@ -450,20 +413,20 @@ mod tests {
     }
 
     #[test]
-    fn base64_decode_known_values() {
-        assert_eq!(base64_decode("aGVsbG8=").unwrap(), b"hello");
-        assert_eq!(base64_decode("QQ==").unwrap(), b"A");
-        assert_eq!(
-            base64_decode("ZmFrZSBpbWFnZSBieXRlcw==").unwrap(),
-            b"fake image bytes"
-        );
-        assert!(base64_decode("").unwrap().is_empty());
-    }
+    fn write_image_to_temp_rejects_invalid_image_data() {
+        let share = ShareRequest {
+            target: "dev1".into(),
+            url: "https://example.com/photo.jpg".into(),
+            image_data: Some("!!!not-base64!!!".into()),
+        };
+        assert!(write_image_to_temp(&share).is_err());
 
-    #[test]
-    fn base64_decode_rejects_invalid_input() {
-        assert!(base64_decode("!!!").is_err());
-        assert!(base64_decode("a").is_err());
+        let share = ShareRequest {
+            target: "dev1".into(),
+            url: "https://example.com/photo.jpg".into(),
+            image_data: None,
+        };
+        assert!(write_image_to_temp(&share).is_err());
     }
 
     #[test]
