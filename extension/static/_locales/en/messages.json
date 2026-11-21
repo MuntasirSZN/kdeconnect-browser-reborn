@@ -1,6 +1,6 @@
 {
   "kdeconnect_name": {
-    "message": "KDE Connect",
+    "message": "KDE Connect Browser Reborn",
     "description": "Extension name shown in the browser UI."
   },
   "kdeconnect_description": {
@@ -8,7 +8,7 @@
     "description": "Extension description shown in the browser UI."
   },
   "kdeconnect_root": {
-    "message": "KDE Connect",
+    "message": "KDE Connect Browser Reborn",
     "description": "Title of the grouped context-menu submenu."
   },
   "kdeconnect_open_device": {

@@ -29,7 +29,7 @@ If applicable, add screenshots to help explain your problem.
 - Browser/version [e.g. chrome 76, firefox 68]
 - kdeconnect-cli version [`kdeconnect-cli --version`]
 - kdeconnect-cli devices [`kdeconnect-cli --list-devices`]
-- kdeconnect-chrome-extension version [`kdeconnect-chrome-extension -version`]
+- kdeconnect-browser-reborn version [`kdeconnect-browser-reborn --version`]
 
 **Smartphone (please complete the following information):**
 
