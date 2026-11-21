@@ -15,12 +15,20 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
 use clap::Parser;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
+
+// The `Simd` engine is only exported on x86_64/aarch64; elsewhere we fall
+// back to the scalar standard engine.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use base64::engine::general_purpose::GeneralPurposeConfig;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use base64::engine::Simd;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 
 mod dbus;
 mod install;
@@ -311,6 +319,21 @@ async fn handle_message(
     Ok(())
 }
 
+/// Decode helper: uses the `Simd` engine, which picks the best instruction
+/// set at runtime (AVX2 on x86_64, NEON on aarch64) and falls back to the
+/// scalar engine. Other targets use the scalar `STANDARD` engine.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+fn decode_image_data(data: &str) -> Result<Vec<u8>> {
+    let engine = Simd::standard(GeneralPurposeConfig::new());
+    Ok(engine.decode(data)?)
+}
+
+/// Decode helper: uses the scalar `STANDARD` engine on non-SIMD targets.
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+fn decode_image_data(data: &str) -> Result<Vec<u8>> {
+    Ok(BASE64_ENGINE.decode(data)?)
+}
+
 /// Write the base64 image data sent by the extension to a temp file and
 /// return its `file://` URL.
 ///
@@ -319,7 +342,7 @@ async fn handle_message(
 /// is a local file), so handing it a real file is how images reach the phone.
 fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
     let data = share.image_data.as_deref().unwrap_or_default();
-    let bytes = BASE64_ENGINE.decode(data).context("decode imageData")?;
+    let bytes = decode_image_data(data).context("decode imageData")?;
     if bytes.is_empty() {
         anyhow::bail!("imageData is empty");
     }
