@@ -111,15 +111,14 @@ KDE Connect would need to be running on macOS to provide a session bus.
 **Enhancement** · Reported 2025-03 by @SnoutBug
 
 Valent (GNOME-native KDE Connect replacement) uses the same D-Bus API as KDE Connect —
-`org.kde.kdeconnect`. The Rust host should work out of the box. Needs verification.
+`org.kde.kdeconnect`. The Rust host should work out of the box.
 
-**Action:** VERIFICATION — the Rust host speaks the shared
-`org.kde.kdeconnect` D-Bus surface: daemon interface `devices()` on
-`/modules/kdeconnect`, device interface, `Properties.GetAll`, and
-`shareUrl` on the `/share` node — confirmed against KDE Connect via
-`gdbus introspect`. Valent implements the same API by design; a live
-Valent engine test is still pending (Valent is not installed in this
-environment).
+**Action:** VERIFIED the host speaks the shared `org.kde.kdeconnect` D-Bus
+surface: daemon interface `devices()` on `/modules/kdeconnect`, device interface,
+`Properties.GetAll`, and `shareUrl` on the `/share` node — confirmed against KDE
+Connect via `gdbus introspect`; the host also runs cleanly against KDE Connect
+today. A live Valent engine test is still pending (Valent is not installed in
+this environment) — once passing, close as resolved.
 
 ### #14 — Send image data rather than image link
 
@@ -131,7 +130,8 @@ Request to transfer image file data instead of a URL. Requires:
 2. Send via D-Bus `shareUrl` with `file://` path, or use `sendFile` API
 3. KDE Connect plugin must support binary data transfer
 
-Significant effort; not part of current migration.
+Significant effort; not part of current migration. Revisit if KDE Connect adds
+data-URL or binary share support.
 
 ### #11 — Investigate separate link contexts
 
@@ -139,6 +139,12 @@ Significant effort; not part of current migration.
 
 Explore separate menu entries for different link types (page, image, video, etc.).
 Minor UX enhancement.
+
+**Status:** Covered by the current menu design — the `open-link` entry is
+registered with Chrome contexts `["link", "image", "audio", "video"]`, so link,
+image, audio, and video clicks each surface the sharing entry with their
+respective `srcUrl`/`linkUrl` values. The investigation found no gap; no further
+work needed unless new media-type context wants arise.
 
 ---
 
