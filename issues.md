@@ -124,14 +124,15 @@ this environment) — once passing, close as resolved.
 
 **Enhancement** · Reported 2017-11 by @pdf
 
-Request to transfer image file data instead of a URL. Requires:
-
-1. Download the image in the extension (fetch → blob)
-2. Send via D-Bus `shareUrl` with `file://` path, or use `sendFile` API
-3. KDE Connect plugin must support binary data transfer
-
-Significant effort; not part of current migration. Revisit if KDE Connect adds
-data-URL or binary share support.
+Request to transfer image file data rather than a URL — now implemented via
+`imageData` on the `typeShare` message: the extension fetches the image
+(`shareImageData` in `extension/src/background.ts`, with `bytesToBase64`), the
+host decodes it (`base64_decode` in `src/main.rs`) and writes it to a temp
+file (`write_image_to_temp`), then calls `shareUrl` with the file's `file://`
+URL — KDE Connect shares local files via that path. Fallback: if the fetch
+fails or the response isn't an image, the extension shares the URL as before.
+Covered by `base64_decode_*` and `write_image_to_temp_*` tests in `src/main.rs`;
+e2e verified against the real host.
 
 ### #11 — Investigate separate link contexts
 
@@ -175,6 +176,7 @@ These issues depend on platform D-Bus availability or were previously labeled wo
 
 | Issue                                      | Fix                                                                                                                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #14 Image data | Extension sends `imageData` on typeShare (`extension/src/share.ts`, `shareImageData` in `background.ts`); host decodes + writes temp file + shares via `file://` URL — KDE Connect shares local files via `file://` |
 | #56 D-Bus interface                        | Already fixed by Rust migration — `isPaired` mapped to `is_trusted`                                                                                           |
 | #62 Chrome deactivation                    | MV3 migration resolves MV2 deprecation                                                                                                                        |
 | #57 Not working                            | Fixed by #56 fix                                                                                                                                              |
@@ -190,5 +192,4 @@ These issues depend on platform D-Bus availability or were previously labeled wo
 | Order | Issue                         | Fix                                                                                              | Difficulty |
 | ----- | ----------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
 | 7     | #59 Valent                    | Host verified against shared `org.kde.kdeconnect` D-Bus surface; live Valent engine test pending | Easy       |
-| 8     | #14 Image data                | Enhancement — scope TBD                                                                          | Hard       |
 | 9     | Platform ports (#35, #39, #4) | Requires D-Bus on target OS                                                                      | Hard       |
