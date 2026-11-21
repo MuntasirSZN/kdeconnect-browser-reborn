@@ -5,12 +5,13 @@
 import { createIcons } from "lucide";
 import type { Device, Message, StatusData } from "../generated/types.js";
 import { DEVICE_ICONS, typeIcon } from "../icons.js";
+import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
+import { shareRequest } from "../share.js";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-let knownDevices: Record<string, Device> = {};
 let currentUrlPromise: Promise<string | null> | null = null;
 
 // ── Messaging ──────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ function renderDevice(device: Device): HTMLElement | null {
   el.addEventListener("click", () => {
     void getCurrentTabUrl().then((url) => {
       if (url) {
-        postMessage({ type: "typeShare", data: { target: device.id, url } });
+        postMessage(shareRequest(device.id, url));
       }
       window.close();
     });
@@ -92,24 +93,16 @@ function renderDevice(device: Device): HTMLElement | null {
   return el;
 }
 
-function writeDevices(devices: Record<string, Device>): void {
+function writeDevices(): void {
   const container = document.getElementById("devices");
   if (!container) return;
 
-  container.innerHTML = "";
-
-  const entries = Object.values(devices).filter(Boolean);
-  if (entries.length === 0) {
+  renderDeviceList(container, knownDevices, renderDevice);
+  if (container.children.length === 0) {
     renderEmpty("No devices found…");
-    return;
+  } else {
+    createIcons({ icons: DEVICE_ICONS });
   }
-
-  for (const dev of entries) {
-    const el = renderDevice(dev);
-    if (el) container.appendChild(el);
-  }
-
-  createIcons({ icons: DEVICE_ICONS });
 }
 
 // ── Status messages ────────────────────────────────────────────────────
@@ -161,15 +154,9 @@ function removeStatus(msg: Message): void {
 // ── Message handler (from background) ──────────────────────────────────
 
 function onMessage(msg: Record<string, unknown>): void {
+  if (applyMessage(msg as { type: unknown; data?: unknown }, writeDevices)) return;
+
   switch (msg.type as string) {
-    case "typeDeviceUpdate":
-      updateDevice(msg.data as Device);
-      break;
-    case "typeDevices": {
-      knownDevices = (msg.data ?? {}) as Record<string, Device>;
-      writeDevices(knownDevices);
-      break;
-    }
     case "typeStatus":
       addStatus(msg as Message);
       break;
@@ -177,11 +164,6 @@ function onMessage(msg: Record<string, unknown>): void {
       removeStatus(msg as Message);
       break;
   }
-}
-
-function updateDevice(device: Device): void {
-  knownDevices[device.id] = device;
-  writeDevices(knownDevices);
 }
 
 // ── Init ───────────────────────────────────────────────────────────────

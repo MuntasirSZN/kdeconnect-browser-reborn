@@ -3,12 +3,13 @@
  */
 
 import { Check, createIcons } from "lucide";
-import type { Device, Message } from "../generated/types.js";
+import type { Message } from "../generated/types.js";
+import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
+import { getStoredOptions } from "../options.js";
 
 // ── State ──────────────────────────────────────────────────────────────
 
 let defaultDeviceId: string | null = null;
-let knownDevices: Record<string, Device> = {};
 let saveStatusTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // ── Messaging ──────────────────────────────────────────────────────────
@@ -19,20 +20,18 @@ function sendMessage(msg: Message): void {
 
 // ── Device list ────────────────────────────────────────────────────────
 
-function writeDevices(devices: Record<string, Device>): void {
+function writeDevices(): void {
   const select = document.getElementById("defaultDevice") as HTMLSelectElement | null;
   if (!select) return;
 
   const selectedDeviceId = select.value || defaultDeviceId;
-  select.innerHTML = "";
-
-  for (const dev of Object.values(devices).filter(Boolean)) {
+  renderDeviceList(select, knownDevices, (device) => {
     const opt = document.createElement("option");
-    opt.value = dev.id;
-    opt.disabled = !(dev.isReachable && dev.isTrusted);
-    opt.textContent = dev.name;
-    select.appendChild(opt);
-  }
+    opt.value = device.id;
+    opt.disabled = !(device.isReachable && device.isTrusted);
+    opt.textContent = device.name;
+    return opt;
+  });
 
   select.value = selectedDeviceId ?? "";
 }
@@ -99,46 +98,32 @@ function saveOptions(): void {
 }
 
 function restoreOptions(): void {
-  chrome.storage.sync.get(
-    { defaultOnly: false, defaultDeviceId: null, disableContextMenu: false },
-    (items) => {
-      defaultDeviceId = items.defaultDeviceId as string | null;
-      const defaultOnly = document.getElementById("defaultOnly") as HTMLInputElement;
-      const disableContextMenu = document.getElementById("disableContextMenu") as HTMLInputElement;
-      const defaultDevice = document.getElementById("defaultDevice") as HTMLSelectElement;
+  getStoredOptions((items) => {
+    defaultDeviceId = items.defaultDeviceId;
+    const defaultOnly = document.getElementById("defaultOnly") as HTMLInputElement;
+    const disableContextMenu = document.getElementById("disableContextMenu") as HTMLInputElement;
+    const defaultDevice = document.getElementById("defaultDevice") as HTMLSelectElement;
 
-      if (defaultOnly) {
-        defaultOnly.checked = items.defaultOnly as boolean;
-        toggleDefaultDevice(items.defaultOnly as boolean);
-        defaultOnly.addEventListener("change", (e) => {
-          toggleDefaultDevice((e.target as HTMLInputElement).checked);
-        });
-      }
-      if (disableContextMenu) {
-        disableContextMenu.checked = items.disableContextMenu as boolean;
-      }
-      if (defaultDevice) {
-        defaultDevice.value = defaultDeviceId ?? "";
-      }
-    },
-  );
+    if (defaultOnly) {
+      defaultOnly.checked = items.defaultOnly;
+      toggleDefaultDevice(items.defaultOnly);
+      defaultOnly.addEventListener("change", (e) => {
+        toggleDefaultDevice((e.target as HTMLInputElement).checked);
+      });
+    }
+    if (disableContextMenu) {
+      disableContextMenu.checked = items.disableContextMenu;
+    }
+    if (defaultDevice) {
+      defaultDevice.value = defaultDeviceId ?? "";
+    }
+  });
 }
 
 // ── Message handler ────────────────────────────────────────────────────
 
 function onMessage(msg: Message): void {
-  if (msg.type === "typeDevices") {
-    knownDevices = (msg.data ?? {}) as Record<string, Device>;
-    writeDevices(knownDevices);
-    return;
-  }
-
-  if (msg.type === "typeDeviceUpdate") {
-    const device = msg.data as Device | undefined;
-    if (!device?.id) return;
-    knownDevices[device.id] = device;
-    writeDevices(knownDevices);
-  }
+  applyMessage(msg, writeDevices);
 }
 
 // ── Init ───────────────────────────────────────────────────────────────

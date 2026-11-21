@@ -7,10 +7,12 @@
  */
 
 import type { Device, Message, ExtensionOptions } from "./generated/types.js";
+import { getStoredOptions } from "./options.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
 import type { MenuStrings } from "./menus.js";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect.js";
 import type { RetryState } from "./reconnect.js";
+import { shareRequest } from "./share.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -289,10 +291,7 @@ chrome.contextMenus.onClicked.addListener(
     if (!url) return;
 
     resetRetry(retry);
-    ensurePort()?.postMessage({
-      type: "typeShare",
-      data: { target: parsed.deviceId, url },
-    });
+    ensurePort()?.postMessage(shareRequest(parsed.deviceId, url));
   },
 );
 
@@ -310,17 +309,10 @@ function broadcast(msg: unknown): void {
 // ── Options (read from storage on start, listen for changes) ──────────
 
 function loadOptions(): void {
-  chrome.storage.sync.get(
-    {
-      defaultOnly: false,
-      defaultDeviceId: null,
-      disableContextMenu: false,
-    } satisfies ExtensionOptions,
-    (items: ExtensionOptions) => {
-      options = items;
-      rebuildContextMenus();
-    },
-  );
+  getStoredOptions((items) => {
+    options = items;
+    rebuildContextMenus();
+  });
 }
 
 chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.StorageChange>) => {
