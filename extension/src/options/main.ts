@@ -2,6 +2,7 @@
  * Options page — default device, context menu toggle.
  */
 
+import { Check, createIcons } from "lucide";
 import type { Device, Message } from "../generated/types.js";
 
 // ── State ──────────────────────────────────────────────────────────────
@@ -45,6 +46,37 @@ function toggleDefaultDevice(show: boolean): void {
 
 // ── Save / restore ─────────────────────────────────────────────────────
 
+function setSaveStatus(error: { message?: string } | null): void {
+  const status = document.getElementById("status");
+  if (!status) return;
+
+  if (saveStatusTimeout !== null) {
+    clearTimeout(saveStatusTimeout);
+    saveStatusTimeout = null;
+  }
+
+  status.innerHTML = "";
+
+  if (error) {
+    status.classList.add("error");
+    status.textContent = `Save failed: ${error.message ?? "unknown error"}`;
+    return;
+  }
+
+  status.classList.remove("error");
+  const icon = document.createElement("i");
+  icon.dataset.lucide = "Check";
+  icon.setAttribute("aria-hidden", "true");
+  icon.className = "status-icon";
+  status.append(icon, document.createTextNode("Saved…"));
+  createIcons({ icons: { Check } });
+
+  saveStatusTimeout = setTimeout(() => {
+    status.innerHTML = "";
+    saveStatusTimeout = null;
+  }, 750);
+}
+
 function saveOptions(): void {
   const newDefaultDeviceId =
     (document.getElementById("defaultDevice") as HTMLSelectElement)?.value ?? "";
@@ -60,26 +92,8 @@ function saveOptions(): void {
       disableContextMenu: newDisableContextMenu,
     },
     () => {
-      const status = document.getElementById("status");
-      if (!status) return;
-
-      if (saveStatusTimeout !== null) {
-        clearTimeout(saveStatusTimeout);
-        saveStatusTimeout = null;
-      }
-
-      const error = chrome.runtime.lastError;
-      if (error) {
-        status.textContent = `Save failed: ${error.message ?? "unknown error"}`;
-        return;
-      }
-
       defaultDeviceId = newDefaultDeviceId;
-      status.textContent = "Saved…";
-      saveStatusTimeout = setTimeout(() => {
-        status.textContent = "";
-        saveStatusTimeout = null;
-      }, 750);
+      setSaveStatus(chrome.runtime.lastError ?? null);
     },
   );
 }

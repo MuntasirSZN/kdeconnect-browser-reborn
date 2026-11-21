@@ -34,6 +34,24 @@ function getCurrentTabUrl(): Promise<string | null> {
 
 // ── Device list rendering ──────────────────────────────────────────────
 
+function renderEmpty(text: string): void {
+  const container = document.getElementById("devices");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const el = document.createElement("p");
+  el.className = "empty";
+
+  const icon = document.createElement("i");
+  icon.dataset.lucide = "Smartphone";
+  icon.setAttribute("aria-hidden", "true");
+  el.append(icon, document.createTextNode(text));
+  container.appendChild(el);
+
+  createIcons({ icons: DEVICE_ICONS });
+}
+
 function renderDevice(device: Device): HTMLElement | null {
   if (!device) return null;
 
@@ -82,7 +100,7 @@ function writeDevices(devices: Record<string, Device>): void {
 
   const entries = Object.values(devices).filter(Boolean);
   if (entries.length === 0) {
-    container.innerHTML = '<p class="empty">No devices found…</p>';
+    renderEmpty("No devices found…");
     return;
   }
 
@@ -117,7 +135,7 @@ function addStatus(msg: Message): void {
     case "typeVersion": {
       el.textContent = `Host upgrade v${String(data.update)} available (current: v${String(data.current)}). `;
       const link = document.createElement("a");
-      link.href = "https://github.com/MuntasirSZN/kdeconnect-chrome-extension#upgrading";
+      link.href = "https://github.com/MuntasirSZN/kdeconnect-browser-reborn#upgrading";
       link.target = "_blank";
       link.textContent = "Upgrade instructions";
       el.appendChild(link);
@@ -175,6 +193,8 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function init(): Promise<void> {
+  renderEmpty("Loading…");
+
   const items = (await chrome.storage.sync.get({
     defaultOnly: false,
     defaultDeviceId: null,
