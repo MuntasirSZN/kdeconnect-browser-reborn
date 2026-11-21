@@ -27,8 +27,6 @@ function getCurrentTabUrl(): Promise<string | null> {
   return currentUrlPromise;
 }
 
-// ── Device list rendering ──────────────────────────────────────────────
-
 function renderEmpty(text: string): void {
   const container = document.getElementById("devices");
   if (!container) return;
@@ -99,8 +97,6 @@ function writeDevices(): void {
   }
 }
 
-// ── Status messages ────────────────────────────────────────────────────
-
 function addStatus(msg: Message): void {
   const data = msg.data as StatusData | undefined;
   if (!data?.key) return;
@@ -145,8 +141,6 @@ function removeStatus(msg: Message): void {
   el?.remove();
 }
 
-// ── Message handler (from background) ──────────────────────────────────
-
 function onMessage(msg: Record<string, unknown>): void {
   if (applyMessage(msg as { type: unknown; data?: unknown }, writeDevices)) return;
 
@@ -159,8 +153,6 @@ function onMessage(msg: Record<string, unknown>): void {
       break;
   }
 }
-
-// ── Init ───────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((e: unknown) => {

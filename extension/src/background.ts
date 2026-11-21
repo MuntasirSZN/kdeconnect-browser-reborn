@@ -40,8 +40,6 @@ interface FirefoxPort {
 let retry: RetryState = createRetryState();
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-// ── Device cache (exported for popup/options) ──────────────────────────
-
 /** Current device snapshot keyed by device ID. */
 export function getDevices(): Readonly<Record<string, Device>> {
   return knownDevices;
@@ -51,8 +49,6 @@ export function getDevices(): Readonly<Record<string, Device>> {
 export function getOptions(): Readonly<ExtensionOptions> {
   return options;
 }
-
-// ── Native port ────────────────────────────────────────────────────────
 
 function connect(isUserAction = false): void {
   if (port) return;
@@ -150,8 +146,6 @@ function onViewMessage(msg: unknown): void {
 // Must be synchronous; we drop the result.
 chrome.runtime.onMessage.addListener(onViewMessage);
 
-// ── Native message handling ───────────────────────────────────────────
-
 function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
   if (thisPort !== port) return;
 
@@ -203,14 +197,10 @@ function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
   }
 }
 
-// ── Device cache ──────────────────────────────────────────────────────
-
 function updateDevice(device: Device): void {
   knownDevices[device.id] = device;
   rebuildContextMenus();
 }
-
-// ── Badge ──────────────────────────────────────────────────────────────
 
 function setBadge(source: string, state: BadgeState): void {
   badges[source] = state;
@@ -232,8 +222,6 @@ function applyBadge(): void {
   void chrome.action.setBadgeText({ text: last.text });
   void chrome.action.setBadgeBackgroundColor({ color: last.color });
 }
-
-// ── Context menus ─────────────────────────────────────────────────────
 
 const message = (key: string, subs: string[] = [], fallback = ""): string =>
   chrome.i18n.getMessage(key, subs) || fallback;
@@ -311,8 +299,6 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(out);
 }
 
-// ── Message routing ───────────────────────────────────────────────────
-
 /**
  * Broadcast a message to all extension views (popup, options).
  */
@@ -321,8 +307,6 @@ function broadcast(msg: unknown): void {
     // Popup/options may be closed — ignore send errors.
   });
 }
-
-// ── Options (read from storage on start, listen for changes) ──────────
 
 function loadOptions(): void {
   getStoredOptions((items) => {
@@ -349,8 +333,6 @@ chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.Sto
 
   if (changed) rebuildContextMenus();
 });
-
-// ── Init ──────────────────────────────────────────────────────────────
 
 loadOptions();
 connect();

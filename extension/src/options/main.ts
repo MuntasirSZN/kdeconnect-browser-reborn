@@ -7,18 +7,12 @@ import type { Message } from "../generated/types.js";
 import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
 import { getStoredOptions } from "../options.js";
 
-// ── State ──────────────────────────────────────────────────────────────
-
 let defaultDeviceId: string | null = null;
 let saveStatusTimeout: ReturnType<typeof setTimeout> | null = null;
-
-// ── Messaging ──────────────────────────────────────────────────────────
 
 function sendMessage(msg: Message): void {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
-
-// ── Device list ────────────────────────────────────────────────────────
 
 function writeDevices(): void {
   const select = document.getElementById("defaultDevice") as HTMLSelectElement | null;
@@ -36,14 +30,10 @@ function writeDevices(): void {
   select.value = selectedDeviceId ?? "";
 }
 
-// ── Toggle helpers ─────────────────────────────────────────────────────
-
 function toggleDefaultDevice(show: boolean): void {
   const el = document.getElementById("defaultDeviceContainer");
   if (el) el.classList.toggle("hidden", !show);
 }
-
-// ── Save / restore ─────────────────────────────────────────────────────
 
 function setSaveStatus(error: { message?: string } | null): void {
   const status = document.getElementById("status");
@@ -120,13 +110,9 @@ function restoreOptions(): void {
   });
 }
 
-// ── Message handler ────────────────────────────────────────────────────
-
 function onMessage(msg: Message): void {
   applyMessage(msg, writeDevices);
 }
-
-// ── Init ───────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
   restoreOptions();
