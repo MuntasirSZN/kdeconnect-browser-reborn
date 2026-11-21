@@ -4,9 +4,10 @@
     <meta charset="utf-8" />
     <title>KDE Connect Options</title>
     <link rel="stylesheet" href="options/style.css" />
+    <link rel="stylesheet" href="theme.css" />
   </head>
   <body>
-    <div id="container">
+    <main id="container">
       <h1>KDE Connect Options</h1>
       <div id="options">
         <div class="item">
@@ -16,10 +17,8 @@
           </label>
         </div>
         <div id="defaultDeviceContainer" class="item hidden">
-          <label>
-            Default device:
-            <select id="defaultDevice"></select>
-          </label>
+          <label for="defaultDevice">Default device:</label>
+          <select id="defaultDevice" class="select"></select>
         </div>
         <div class="item">
           <label>
@@ -30,9 +29,9 @@
       </div>
       <div id="controls">
         <span id="status"></span>
-        <button id="save">Save</button>
+        <button id="save" type="button">Save</button>
       </div>
-    </div>
+    </main>
     <script src="options/main.js" type="module"></script>
   </body>
 </html>

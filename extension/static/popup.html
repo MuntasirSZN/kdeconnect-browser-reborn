@@ -4,18 +4,17 @@
     <meta charset="utf-8" />
     <title>KDE Connect</title>
     <link rel="stylesheet" href="popup/style.css" />
+    <link rel="stylesheet" href="theme.css" />
   </head>
   <body>
-    <div id="container">
+    <main id="container">
       <div id="header">
         <img src="images/kdeconnect-32.png" alt="" width="32" height="32" />
         <h1>KDE Connect</h1>
       </div>
-      <div id="status"></div>
-      <div id="devices">
-        <p class="empty">Loading…</p>
-      </div>
-    </div>
+      <div id="status" aria-live="polite"></div>
+      <div id="devices"></div>
+    </main>
     <script src="popup/main.js" type="module"></script>
   </body>
 </html>
