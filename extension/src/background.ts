@@ -282,18 +282,42 @@ function rebuildContextMenus(): void {
   rebuild();
 }
 
-chrome.contextMenus.onClicked.addListener(
-  (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-    const parsed = parseMenuId(String(info.menuItemId));
-    if (!parsed) return;
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  const parsed = parseMenuId(String(info.menuItemId));
+  if (!parsed) return;
 
-    const url = resolveMenuUrl(parsed.action, info, tab?.url);
-    if (!url) return;
+  const url = resolveMenuUrl(parsed.action, info, tab?.url);
+  if (!url) return;
 
-    resetRetry(retry);
-    ensurePort()?.postMessage(shareRequest(parsed.deviceId, url));
-  },
-);
+  // Image context: transfer the file data rather than the link.
+  const imageData = info.mediaType === "image" ? await shareImageData(info) : null;
+
+  resetRetry(retry);
+  ensurePort()?.postMessage(shareRequest(parsed.deviceId, url, imageData));
+});
+
+/** Fetch the image bytes of an image-context click, or null if unavailable. */
+async function shareImageData(info: chrome.contextMenus.OnClickData): Promise<string | null> {
+  const url = info.srcUrl ?? info.linkUrl;
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    if (!res.ok || !blob.type.startsWith("image/")) return null;
+    return bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
+  } catch {
+    return null; // fall back to sharing the URL
+  }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let out = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(out);
+}
 
 // ── Message routing ───────────────────────────────────────────────────
 
