@@ -356,11 +356,20 @@ fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .context("read clock")?
         .as_nanos();
-    let path = std::env::temp_dir().join(format!(
+
+    // KDE Connect's daemon shares the file:// URL with the phone after the
+    // host reports it, so the file must outlive this function: `keep`
+    // disables the TempDir's automatic cleanup.
+    let dir = tempfile::Builder::new()
+        .prefix("kdeconnect-share")
+        .tempdir()
+        .context("create temp dir")?;
+    let path = dir.keep().join(format!(
         "kdeconnect-share-{}-{}.{}",
         share.target, nanos, ext
     ));
     std::fs::write(&path, bytes).with_context(|| format!("write image file {}", path.display()))?;
+
     Ok(format!("file://{}", path.display()))
 }
 
@@ -412,9 +421,9 @@ async fn handle_share(
     Ok(())
 }
 
+/// Returns whether `url` is a shareable `http(s)` link with a non-empty host.
 fn is_shareable_url(url: &str) -> bool {
-    let url = url.to_ascii_lowercase();
-    url.starts_with("http://") || url.starts_with("https://")
+    url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.has_host())
 }
 
 #[cfg(test)]
@@ -425,6 +434,9 @@ mod tests {
     fn only_supported_url_schemes_are_shareable() {
         assert!(is_shareable_url("https://example.com/page"));
         assert!(is_shareable_url("http://example.com"));
+        assert!(is_shareable_url("HTTP://Example.COM/Page"));
+        assert!(!is_shareable_url("http://"));
+        assert!(!is_shareable_url("not a url"));
         assert!(!is_shareable_url("tel:+15551234"));
         assert!(!is_shareable_url("javascript:alert(1)"));
         assert!(!is_shareable_url("file:///etc/passwd"));
@@ -464,6 +476,9 @@ mod tests {
         );
         assert_eq!(path.rsplit('.').next(), Some("jpg"));
         std::fs::remove_file(path).ok();
+        if let Some(dir) = std::path::Path::new(path).parent() {
+            std::fs::remove_dir_all(dir).ok();
+        }
     }
 
     #[tokio::test]

@@ -399,9 +399,8 @@ mod tests {
 
     #[test]
     fn pick_daemon_binary_prefers_arch_tagged_sibling() {
-        let dir =
-            std::env::temp_dir().join(format!("kdeconnect-install-tag-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let temp = tempfile::TempDir::new().unwrap();
+        let dir = temp.path().to_path_buf();
         let exe = fake_exe(&dir, true);
         let tagged = dir.join(format!(
             "kdeconnect-browser-reborn-{}",
@@ -413,9 +412,8 @@ mod tests {
 
     #[test]
     fn pick_daemon_binary_falls_back_to_running_exe() {
-        let dir =
-            std::env::temp_dir().join(format!("kdeconnect-install-notag-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let temp = tempfile::TempDir::new().unwrap();
+        let dir = temp.path().to_path_buf();
         let exe = fake_exe(&dir, false);
         assert_eq!(pick_daemon_binary(&exe), exe);
         std::fs::remove_dir_all(&dir).ok();
