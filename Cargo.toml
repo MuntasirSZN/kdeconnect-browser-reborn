@@ -6,6 +6,8 @@ rust-version = "1.90"
 description = "Native messaging host bridging Chrome/Firefox with KDE Connect via D-Bus"
 repository = "https://github.com/MuntasirSZN/kdeconnect-browser-reborn"
 license = "MIT"
+keywords = ["kdeconnect", "kde", "browser", "native-messaging", "d-bus"]
+categories = ["command-line-utilities", "development-tools"]
 
 [features]
 default = ["ts-export"]
@@ -32,3 +34,54 @@ tracing-appender = { version = "0.2.5", features = ["parking_lot"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ts-rs = { version = "12", default-features = false, features = ["serde-compat", "serde-json-impl"], optional = true }
 zbus = "6"
+
+[lints]
+# This one may vary depending on the project.
+rust.unsafe_code = "forbid"
+
+# LINEBENDER LINT SET - Cargo.toml - v8
+# See https://linebender.org/wiki/canonical-lints/
+rust.keyword_idents_2024 = "forbid"
+rust.non_ascii_idents = "forbid"
+rust.non_local_definitions = "forbid"
+rust.unsafe_op_in_unsafe_fn = "forbid"
+
+rust.elided_lifetimes_in_paths = "warn"
+rust.missing_debug_implementations = "warn"
+rust.missing_docs = "warn"
+rust.trivial_numeric_casts = "warn"
+rust.unnameable_types = "warn"
+rust.unreachable_pub = "warn"
+rust.unused_import_braces = "warn"
+rust.unused_lifetimes = "warn"
+rust.unused_macro_rules = "warn"
+rust.unused_qualifications = "warn"
+
+clippy.too_many_arguments = "allow"
+
+clippy.allow_attributes_without_reason = "warn"
+clippy.cast_possible_truncation = "warn"
+clippy.cast_possible_wrap = "warn"
+clippy.collection_is_never_read = "warn"
+clippy.dbg_macro = "warn"
+clippy.debug_assert_with_mut_call = "warn"
+clippy.default_trait_access = "warn"
+clippy.doc_markdown = "warn"
+clippy.fn_to_numeric_cast_any = "warn"
+clippy.infinite_loop = "warn"
+clippy.large_stack_arrays = "warn"
+clippy.mismatching_type_param_order = "warn"
+clippy.missing_assert_message = "warn"
+clippy.missing_fields_in_debug = "warn"
+clippy.same_functions_in_if_condition = "warn"
+clippy.semicolon_if_nothing_returned = "warn"
+clippy.should_panic_without_expect = "warn"
+clippy.todo = "warn"
+clippy.unseparated_literal_suffix = "warn"
+clippy.use_self = "warn"
+
+clippy.cargo_common_metadata = "warn"
+clippy.negative_feature_names = "warn"
+clippy.redundant_feature_names = "warn"
+clippy.wildcard_dependencies = "warn"
+# END LINEBENDER LINT SET
