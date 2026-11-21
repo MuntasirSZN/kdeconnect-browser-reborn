@@ -2,7 +2,7 @@
 name = "kdeconnect-browser-reborn"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.95"
 description = "Native messaging host bridging Chrome/Firefox with KDE Connect via D-Bus"
 repository = "https://github.com/MuntasirSZN/kdeconnect-browser-reborn"
 license = "MIT"

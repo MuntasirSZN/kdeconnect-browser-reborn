@@ -61,7 +61,7 @@ For a source build, run `cargo build --release`, then install the resulting
 
 ## Building from source
 
-1. Install the [Rust toolchain](https://rustup.rs) (v1.90+).
+1. Install the [Rust toolchain](https://rustup.rs) (v1.95+).
 2. Clone the repository:
 
    ```bash
