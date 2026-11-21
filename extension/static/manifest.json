@@ -35,7 +35,8 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["nativeMessaging", "storage", "contextMenus", "activeTab"],
+  "permissions": ["nativeMessaging", "storage", "contextMenus", "activeTab", "tabs"],
+  "host_permissions": ["*://*/*"],
   "browser_specific_settings": {
     "gecko": {
       "id": "kde-connect@0xc0dedbad.com",

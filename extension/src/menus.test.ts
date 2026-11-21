@@ -3,8 +3,12 @@ import type { Device, ExtensionOptions } from "./generated/types.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
 import { deviceMenuIcon } from "./icons.js";
 
-const strings = { open: (name: string) => `Open on '${name}'` };
+const strings = {
+  open: (name: string) => `Open on '${name}'`,
+  call: (name: string) => `Call on '${name}'`,
+};
 const options: ExtensionOptions = {
+  enabled: true,
   defaultOnly: false,
   defaultDeviceId: null,
   disableContextMenu: false,
@@ -19,7 +23,7 @@ function device(overrides: Partial<Device> = {}): Device {
     statusIconName: "",
     isReachable: true,
     isTrusted: true,
-    supportedPlugins: {},
+    supportedPlugins: { kdeconnect_share: undefined as never },
     ...overrides,
   };
 }
@@ -33,12 +37,25 @@ describe("buildMenuSpec", () => {
       buildMenuSpec({ dev1: device() }, { ...options, disableContextMenu: true }, strings),
     ).toEqual([]);
   });
-  test("one device gets flat link and page entries", () => {
+  test("a phone gets link, page, and call entries", () => {
     const spec = buildMenuSpec({ dev1: device() }, options, strings);
-    expect(spec.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
+    expect(spec.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1", "call@dev1"]);
     expect(spec[0].contexts).toEqual(["link", "image", "audio", "video"]);
     expect(spec[0].targetUrlPatterns).toEqual(["http://*/*", "https://*/*"]);
     expect(spec[1].contexts).toEqual(["page"]);
+    expect(spec[2].title).toBe("Call on 'Pixel 9'");
+    expect(spec[2].contexts).toEqual(["link"]);
+    expect(spec[2].targetUrlPatterns).toEqual(["tel:*"]);
+  });
+  test("desktop, laptop, and TV devices get no call entry", () => {
+    for (const type of ["desktop", "laptop", "tv"]) {
+      const spec = buildMenuSpec({ dev1: device({ type }) }, options, strings);
+      expect(spec.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
+    }
+  });
+  test("devices without the share plugin get no entries", () => {
+    const noShare = device({ supportedPlugins: { kdeconnect_ping: undefined as never } });
+    expect(buildMenuSpec({ dev1: noShare }, options, strings)).toEqual([]);
   });
   test("multiple devices get flat entries", () => {
     const spec = buildMenuSpec(
@@ -49,17 +66,20 @@ describe("buildMenuSpec", () => {
     expect(spec.map((e) => e.id)).toEqual([
       "open-link@a",
       "open-page@a",
+      "call@a",
       "open-link@b",
       "open-page@b",
+      "call@b",
     ]);
   });
   test("tab sharing is Firefox-only and has device icons", () => {
     const chromeMenus = buildMenuSpec({ dev1: device() }, options, strings);
     const firefoxMenus = buildMenuSpec({ dev1: device() }, options, strings, true);
-    expect(chromeMenus.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1"]);
+    expect(chromeMenus.map((e) => e.id)).toEqual(["open-link@dev1", "open-page@dev1", "call@dev1"]);
     expect(firefoxMenus.map((e) => e.id)).toEqual([
       "open-link@dev1",
       "open-page@dev1",
+      "call@dev1",
       "open-tab@dev1",
     ]);
     expect(firefoxMenus[0].icons).toEqual({ 16: deviceMenuIcon("phone") });
@@ -103,9 +123,11 @@ describe("parseMenuId", () => {
   test("splits action and device id", () => {
     expect(parseMenuId("open-link@a1b2")).toEqual({ action: "open-link", deviceId: "a1b2" });
   });
+  test("accepts the call action", () => {
+    expect(parseMenuId("call@a1b2")).toEqual({ action: "call", deviceId: "a1b2" });
+  });
   test("rejects removed or unknown ids", () => {
     expect(parseMenuId("kdeconnect-root")).toBeNull();
-    expect(parseMenuId("call@dev1")).toBeNull();
     expect(parseMenuId("bogus@dev1")).toBeNull();
   });
 });
@@ -123,6 +145,17 @@ describe("resolveMenuUrl", () => {
     );
     expect(resolveMenuUrl("open-tab", { pageUrl: "https://example.com/t" })).toBe(
       "https://example.com/t",
+    );
+  });
+  test("call only accepts tel links", () => {
+    expect(resolveMenuUrl("call", { linkUrl: "tel:+15551234" })).toBe("tel:+15551234");
+    expect(resolveMenuUrl("call", { linkUrl: "https://example.com" })).toBeNull();
+    expect(resolveMenuUrl("call", { linkUrl: "tel:" })).toBeNull();
+    expect(resolveMenuUrl("call", {})).toBeNull();
+  });
+  test("accepts mixed-case schemes", () => {
+    expect(resolveMenuUrl("open-link", { linkUrl: "HTTPS://Example.COM/Page" })).toBe(
+      "HTTPS://Example.COM/Page",
     );
   });
   test("rejects non-web schemes", () => {

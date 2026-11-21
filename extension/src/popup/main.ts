@@ -128,6 +128,10 @@ function addStatus(msg: Message): void {
       el.className = "status error";
       el.textContent = `Error: ${String(data.error ?? "unknown")}`;
       break;
+    case "typeShareResult":
+      el.className = "status";
+      el.textContent = String(data.message ?? "Sent");
+      break;
     default:
       el.textContent = String(data.error ?? "");
   }
@@ -164,9 +168,15 @@ async function init(): Promise<void> {
   renderEmpty("Loading…");
 
   const items = (await chrome.storage.sync.get({
+    enabled: true,
     defaultOnly: false,
     defaultDeviceId: null,
-  })) as { defaultOnly?: boolean; defaultDeviceId?: string | null };
+  })) as { enabled?: boolean; defaultOnly?: boolean; defaultDeviceId?: string | null };
+
+  if (items.enabled === false) {
+    renderEmpty("KDE Connect is disabled in options.");
+    return;
+  }
 
   if (items.defaultOnly && items.defaultDeviceId) {
     const url = await getCurrentTabUrl();

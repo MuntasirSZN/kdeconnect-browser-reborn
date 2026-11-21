@@ -24,7 +24,9 @@
 // END LINEBENDER LINT SET
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use std::path::Path;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 use base64::Engine;
@@ -51,7 +53,7 @@ use dbus::SharedDevice;
 use messaging::{Reader, Writer};
 use types::{Message, MessageType, ShareRequest};
 
-const PROTOCOL_VERSION: &str = "0.1.3";
+const PROTOCOL_VERSION: &str = "0.1.4";
 const CLI_VERSION: &str = "0.1.7";
 
 #[expect(
@@ -160,6 +162,8 @@ async fn main() -> Result<()> {
 
 async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Result<()> {
     info!(count = devices.len(), "devices discovered");
+
+    cleanup_stale_share_dirs(&std::env::temp_dir(), SystemTime::now(), SHARE_TEMP_MAX_AGE);
 
     // Register D-Bus signal match rules for each device.
     for state in &devices {
@@ -284,12 +288,15 @@ async fn handle_message(
         }
 
         MessageType::Share => {
-            if let Err(e) = handle_share(conn, devices, msg).await {
-                drop(output_tx.send(Message::result(
-                    MessageType::Error,
-                    serde_json::Value::String(format!("{e:#}")),
-                )));
-            }
+            let result = match handle_share(conn, devices, msg).await {
+                Ok(()) => serde_json::json!({ "ok": true }),
+                Err(e) => serde_json::json!({ "ok": false, "error": format!("{e:#}") }),
+            };
+            drop(output_tx.send(Message::reply(
+                msg.id.as_deref(),
+                MessageType::ShareResult,
+                result,
+            )));
         }
 
         MessageType::Version => {
@@ -303,6 +310,11 @@ async fn handle_message(
         MessageType::DeviceUpdate => {
             // Outbound-only — log if the extension sends one.
             warn!("unexpected DeviceUpdate from extension");
+        }
+
+        MessageType::ShareResult => {
+            // Outbound-only — log if the extension sends one.
+            warn!("unexpected ShareResult from extension");
         }
 
         MessageType::Error => {
@@ -342,35 +354,121 @@ fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
         anyhow::bail!("imageData is empty");
     }
 
-    let ext = share
-        .url
-        .split('?')
-        .next()
-        .and_then(|path| path.rsplit('.').next())
-        .filter(|ext| {
-            !ext.is_empty() && ext.len() <= 4 && ext.bytes().all(|b| b.is_ascii_alphanumeric())
-        })
-        .map_or_else(|| "png".to_owned(), str::to_lowercase);
-
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .context("read clock")?
-        .as_nanos();
+    // Prefer the bytes' own signature; the URL extension is only a fallback.
+    let ext = sniff_image_extension(&bytes).map_or_else(
+        || {
+            share
+                .url
+                .split('?')
+                .next()
+                .and_then(|path| path.rsplit('.').next())
+                .filter(|ext| {
+                    !ext.is_empty()
+                        && ext.len() <= 4
+                        && ext.bytes().all(|b| b.is_ascii_alphanumeric())
+                })
+                .map_or_else(|| "png".to_owned(), str::to_lowercase)
+        },
+        str::to_owned,
+    );
 
     // KDE Connect's daemon shares the file:// URL with the phone after the
     // host reports it, so the file must outlive this function: `keep`
-    // disables the TempDir's automatic cleanup.
+    // disables the TempDir's automatic cleanup. The file name is generated
+    // here, never derived from extension-supplied data.
     let dir = tempfile::Builder::new()
-        .prefix("kdeconnect-share")
+        .prefix(SHARE_TEMP_PREFIX)
         .tempdir()
         .context("create temp dir")?;
-    let path = dir.keep().join(format!(
-        "kdeconnect-share-{}-{}.{}",
-        share.target, nanos, ext
-    ));
+    let path = dir.path().join(format!("image.{ext}"));
     std::fs::write(&path, bytes).with_context(|| format!("write image file {}", path.display()))?;
+    let _kept = dir.keep();
 
-    Ok(format!("file://{}", path.display()))
+    file_url(&path)
+}
+
+/// Convert an absolute local path into a percent-encoded `file://` URL.
+fn file_url(path: &Path) -> Result<String> {
+    url::Url::from_file_path(path)
+        .map(|url| url.to_string())
+        .map_err(|()| anyhow::anyhow!("not an absolute path: {}", path.display()))
+}
+
+/// Detect common image formats from their magic bytes.
+fn sniff_image_extension(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some("png");
+    }
+    if bytes.starts_with(b"\xff\xd8\xff") {
+        return Some("jpg");
+    }
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        return Some("gif");
+    }
+    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        return Some("webp");
+    }
+    if bytes.starts_with(b"BM") {
+        return Some("bmp");
+    }
+    if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
+        let brand = &bytes[8..12];
+        if brand == b"avif" || brand == b"avis" {
+            return Some("avif");
+        }
+    }
+    let head = &bytes[..bytes.len().min(512)];
+    if String::from_utf8_lossy(head).contains("<svg") {
+        return Some("svg");
+    }
+    None
+}
+
+const SHARE_TEMP_PREFIX: &str = "kdeconnect-share";
+
+/// Share files may outlive the daemon call while a transfer runs, so they are
+/// only swept after a generous grace period.
+const SHARE_TEMP_MAX_AGE: Duration = Duration::from_hours(24);
+
+fn is_stale(modified: SystemTime, now: SystemTime, max_age: Duration) -> bool {
+    now.duration_since(modified).is_ok_and(|age| age > max_age)
+}
+
+/// Remove share temp directories older than `max_age` left behind by earlier
+/// runs. Recent directories are kept in case a transfer is still in flight.
+fn cleanup_stale_share_dirs(root: &Path, now: SystemTime, max_age: Duration) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(SHARE_TEMP_PREFIX)
+        {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_dir() {
+            continue;
+        }
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if !is_stale(modified, now, max_age) {
+            continue;
+        }
+
+        match std::fs::remove_dir_all(entry.path()) {
+            Ok(()) => info!(path = %entry.path().display(), "removed stale share temp dir"),
+            Err(e) => {
+                warn!(path = %entry.path().display(), error = %e, "failed to remove stale share temp dir");
+            }
+        }
+    }
 }
 
 async fn handle_share(
@@ -384,19 +482,8 @@ async fn handle_share(
         .and_then(|d| serde_json::from_value(d.clone()).ok())
         .ok_or_else(|| anyhow::anyhow!("invalid share payload: {:?}", msg.data))?;
 
-    // The extension sends the image bytes directly for image context clicks —
-    // KDE Connect shares local files via their file:// URL, so write the data
-    // to a temp file and share that instead of the link.
-    let url = if share.image_data.is_some() {
-        write_image_to_temp(&share)?
-    } else {
-        share.url.clone()
-    };
-
-    if share.image_data.is_none() && !is_shareable_url(&url) {
-        anyhow::bail!("unsupported URL scheme; only http and https URLs can be shared");
-    }
-
+    // Resolve and validate the target *before* touching the filesystem: the
+    // id is extension-supplied and must never influence a temp path.
     // Clone the list before awaiting individual device locks. A brief lock
     // contention must not make a valid target appear to be an unknown ID.
     let candidates = devices.lock().await.clone();
@@ -409,21 +496,39 @@ async fn handle_share(
         }
     }
 
-    match device_arc {
-        Some(d) => {
-            let state = d.lock().await;
-            dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
-            dbus::share_url(conn, &state.device.id, &url).await?;
+    let Some(d) = device_arc else {
+        anyhow::bail!("unknown device: {}", share.target);
+    };
+    let state = d.lock().await;
+    dbus::check_capability(&state, dbus::PLUGIN_SHARE)?;
+    let device_id = state.device.id.clone();
+    drop(state);
+
+    // The extension sends the image bytes directly for image context clicks —
+    // KDE Connect shares local files via their file:// URL, so write the data
+    // to a temp file and share that instead of the link.
+    let url = if share.image_data.is_some() {
+        write_image_to_temp(&share)?
+    } else {
+        if !is_shareable_url(&share.url) {
+            anyhow::bail!("unsupported URL scheme; only http, https, and tel URLs can be shared");
         }
-        None => anyhow::bail!("unknown device: {}", share.target),
-    }
+        share.url.clone()
+    };
+
+    dbus::share_url(conn, &device_id, &url).await?;
 
     Ok(())
 }
 
-/// Returns whether `url` is a shareable `http(s)` link with a non-empty host.
+/// Returns whether `url` is a shareable `http(s)` link with a non-empty host
+/// or a `tel:` link with a non-empty number.
 fn is_shareable_url(url: &str) -> bool {
-    url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.has_host())
+    url::Url::parse(url).is_ok_and(|u| match u.scheme() {
+        "http" | "https" => u.has_host(),
+        "tel" => !u.path().is_empty(),
+        _ => false,
+    })
 }
 
 #[cfg(test)]
@@ -435,12 +540,52 @@ mod tests {
         assert!(is_shareable_url("https://example.com/page"));
         assert!(is_shareable_url("http://example.com"));
         assert!(is_shareable_url("HTTP://Example.COM/Page"));
+        assert!(is_shareable_url("tel:+15551234"));
+        assert!(is_shareable_url("TEL:+1-555-1234;ext=5"));
         assert!(!is_shareable_url("http://"));
         assert!(!is_shareable_url("not a url"));
-        assert!(!is_shareable_url("tel:+15551234"));
+        assert!(!is_shareable_url("tel:"));
         assert!(!is_shareable_url("javascript:alert(1)"));
         assert!(!is_shareable_url("file:///etc/passwd"));
         assert!(!is_shareable_url("chrome://settings"));
+    }
+
+    #[test]
+    fn file_urls_are_percent_encoded() {
+        let url = file_url(Path::new("/tmp/a b/фото.png")).expect("file url");
+        assert_eq!(url, "file:///tmp/a%20b/%D1%84%D0%BE%D1%82%D0%BE.png");
+        assert!(file_url(Path::new("relative.png")).is_err());
+    }
+
+    #[test]
+    fn image_extension_is_sniffed_from_bytes() {
+        assert_eq!(sniff_image_extension(b"\x89PNG\r\n\x1a\nrest"), Some("png"));
+        assert_eq!(sniff_image_extension(b"\xff\xd8\xff\xe0rest"), Some("jpg"));
+        assert_eq!(sniff_image_extension(b"GIF89arest"), Some("gif"));
+        assert_eq!(
+            sniff_image_extension(b"RIFF\x00\x00\x00\x00WEBPVP8 "),
+            Some("webp")
+        );
+        assert_eq!(sniff_image_extension(b"BMrest"), Some("bmp"));
+        assert_eq!(
+            sniff_image_extension(b"\x00\x00\x00\x18ftypavif"),
+            Some("avif")
+        );
+        assert_eq!(
+            sniff_image_extension(b"<?xml version=\"1.0\"?><svg>"),
+            Some("svg")
+        );
+        assert_eq!(sniff_image_extension(b"plain text"), None);
+    }
+
+    #[test]
+    fn stale_share_dirs_are_detected_by_age() {
+        let now = SystemTime::now();
+        let old = now - Duration::from_hours(48);
+        let fresh = now - Duration::from_mins(1);
+        let max_age = Duration::from_hours(24);
+        assert!(is_stale(old, now, max_age));
+        assert!(!is_stale(fresh, now, max_age));
     }
 
     #[test]
@@ -469,14 +614,41 @@ mod tests {
         };
         let url = write_image_to_temp(&share).expect("write image file");
         assert!(url.starts_with("file://"));
-        let path = url.strip_prefix("file://").expect("file url");
+        let path = url::Url::parse(&url)
+            .expect("parse file url")
+            .to_file_path()
+            .expect("file path");
         assert_eq!(
-            std::fs::read(path).expect("read image file"),
+            std::fs::read(&path).expect("read image file"),
             b"fake image bytes"
         );
-        assert_eq!(path.rsplit('.').next(), Some("jpg"));
-        std::fs::remove_file(path).ok();
-        if let Some(dir) = std::path::Path::new(path).parent() {
+        assert_eq!(path.extension().and_then(|e| e.to_str()), Some("jpg"));
+        // The name must not embed the (untrusted) device id.
+        assert!(!path.to_string_lossy().contains("dev1"));
+        std::fs::remove_file(&path).ok();
+        if let Some(dir) = path.parent() {
+            std::fs::remove_dir_all(dir).ok();
+        }
+    }
+
+    #[test]
+    fn image_extension_comes_from_bytes_not_the_url() {
+        // A URL claiming .jpg while the bytes are PNG must produce a .png file.
+        let share = ShareRequest {
+            target: "dev1".into(),
+            url: "https://example.com/photo.jpg".into(),
+            image_data: Some(
+                base64::engine::general_purpose::STANDARD.encode(b"\x89PNG\r\n\x1a\nfake"),
+            ),
+        };
+        let url = write_image_to_temp(&share).expect("write image file");
+        let path = url::Url::parse(&url)
+            .expect("parse file url")
+            .to_file_path()
+            .expect("file path");
+        assert_eq!(path.extension().and_then(|e| e.to_str()), Some("png"));
+        std::fs::remove_file(&path).ok();
+        if let Some(dir) = path.parent() {
             std::fs::remove_dir_all(dir).ok();
         }
     }

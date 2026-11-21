@@ -67,6 +67,7 @@ function setSaveStatus(error: { message?: string } | null): void {
 }
 
 function saveOptions(): void {
+  const newEnabled = (document.getElementById("enabled") as HTMLInputElement)?.checked ?? true;
   const newDefaultDeviceId =
     (document.getElementById("defaultDevice") as HTMLSelectElement)?.value ?? "";
   const newDefaultOnly =
@@ -76,6 +77,7 @@ function saveOptions(): void {
 
   chrome.storage.sync.set(
     {
+      enabled: newEnabled,
       defaultDeviceId: newDefaultDeviceId,
       defaultOnly: newDefaultOnly,
       disableContextMenu: newDisableContextMenu,
@@ -90,10 +92,14 @@ function saveOptions(): void {
 function restoreOptions(): void {
   getStoredOptions((items) => {
     defaultDeviceId = items.defaultDeviceId;
+    const enabled = document.getElementById("enabled") as HTMLInputElement;
     const defaultOnly = document.getElementById("defaultOnly") as HTMLInputElement;
     const disableContextMenu = document.getElementById("disableContextMenu") as HTMLInputElement;
     const defaultDevice = document.getElementById("defaultDevice") as HTMLSelectElement;
 
+    if (enabled) {
+      enabled.checked = items.enabled;
+    }
     if (defaultOnly) {
       defaultOnly.checked = items.defaultOnly;
       toggleDefaultDevice(items.defaultOnly);

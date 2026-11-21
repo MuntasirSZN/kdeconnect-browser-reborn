@@ -27,6 +27,15 @@ impl Message {
             data: Some(data),
         }
     }
+
+    /// Build an outbound message that echoes the request's correlation id.
+    pub(crate) fn reply(id: Option<&str>, msg_type: MessageType, data: serde_json::Value) -> Self {
+        Self {
+            id: id.map(str::to_owned),
+            msg_type,
+            data: Some(data),
+        }
+    }
 }
 
 /// Discriminated message type matching Go's `messageType` enum.
@@ -37,6 +46,8 @@ pub(crate) enum MessageType {
     Devices,
     #[serde(rename = "typeShare")]
     Share,
+    #[serde(rename = "typeShareResult")]
+    ShareResult,
     #[serde(rename = "typeDeviceUpdate")]
     DeviceUpdate,
     #[serde(rename = "typeError")]

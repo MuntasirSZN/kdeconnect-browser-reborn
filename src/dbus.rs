@@ -385,10 +385,6 @@ async fn handle_signal(
 
     // Determine which fields to refresh based on signal type.
     match member {
-        "reachableChanged" => {
-            let v = get_prop_raw(conn, &state.object_path, "isReachable").await?;
-            state.device.is_reachable = owned_value_to_json(&v)?;
-        }
         "nameChanged" => {
             let v = get_prop_raw(conn, &state.object_path, "name").await?;
             state.device.name = owned_value_to_json(&v)?;

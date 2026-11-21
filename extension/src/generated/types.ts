@@ -11,6 +11,7 @@ export type { ShareRequest } from "./ShareRequest";
 
 /** Mirrors Rust's `struct ExtensionOptions` in `messaging.rs`. */
 export interface ExtensionOptions {
+  enabled: boolean;
   defaultOnly: boolean;
   defaultDeviceId: string | null;
   disableContextMenu: boolean;
@@ -18,9 +19,10 @@ export interface ExtensionOptions {
 
 /** Status message from service worker to popup/options. */
 export interface StatusData {
-  type: "typeError" | "typeVersion" | "typeClearStatus";
+  type: "typeError" | "typeVersion" | "typeClearStatus" | "typeShareResult";
   key: string;
   error?: string;
+  message?: string;
   update?: string;
   current?: string;
 }

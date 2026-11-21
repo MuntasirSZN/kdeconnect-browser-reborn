@@ -12,14 +12,15 @@ import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
 import type { MenuStrings } from "./menus.js";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect.js";
 import type { RetryState } from "./reconnect.js";
-import { shareRequest } from "./share.js";
+import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "./share.js";
 
 const HOSTNAME = "com.0xc0dedbad.kdeconnect_chrome";
-const PROTOCOL_VERSION = "0.1.3";
+const PROTOCOL_VERSION = "0.1.4";
 
 let port: chrome.runtime.Port | null = null;
 let knownDevices: Record<string, Device> = {};
 let options: ExtensionOptions = {
+  enabled: true,
   defaultOnly: false,
   defaultDeviceId: null,
   disableContextMenu: false,
@@ -51,7 +52,7 @@ export function getOptions(): Readonly<ExtensionOptions> {
 }
 
 function connect(isUserAction = false): void {
-  if (port) return;
+  if (port || !options.enabled) return;
 
   if (reconnectTimer !== null) {
     clearTimeout(reconnectTimer);
@@ -124,8 +125,23 @@ function clearDevices(): void {
 
 /** Connect on demand; user-initiated calls get a fresh backoff budget. */
 function ensurePort(): chrome.runtime.Port | null {
+  if (!options.enabled) return null;
   if (!port) connect(true);
   return port;
+}
+
+/** Tear down the native port without scheduling a reconnect. */
+function disableIntegration(): void {
+  const current = port;
+  port = null;
+  current?.disconnect();
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  clearDevices();
+  void chrome.contextMenus.removeAll();
+  clearBadge("connected");
 }
 
 /**
@@ -176,6 +192,26 @@ function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
         data: { type: "typeError", key: "host", error: msg.data as string },
       });
       break;
+
+    case "typeShareResult": {
+      const data = msg.data as { ok?: boolean; error?: string } | undefined;
+      broadcast(
+        data?.ok
+          ? {
+              type: "typeStatus",
+              data: { type: "typeShareResult", key: "share", message: "Sent" },
+            }
+          : {
+              type: "typeStatus",
+              data: {
+                type: "typeError",
+                key: "share",
+                error: String(data?.error ?? "share failed"),
+              },
+            },
+      );
+      break;
+    }
 
     case "typeVersion": {
       const remote = msg.data as string;
@@ -228,6 +264,7 @@ const message = (key: string, subs: string[] = [], fallback = ""): string =>
 
 const menuStrings: MenuStrings = {
   open: (name) => message("kdeconnect_open_device", [name], `Open on '${name}'`),
+  call: (name) => message("kdeconnect_call_device", [name], `Call on '${name}'`),
 };
 
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
@@ -270,7 +307,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!url) return;
 
   // Image context: transfer the file data rather than the link.
-  const imageData = info.mediaType === "image" ? await shareImageData(info) : null;
+  const imageData = wantsImageData(info) ? await shareImageData(info) : null;
 
   resetRetry(retry);
   ensurePort()?.postMessage(shareRequest(parsed.deviceId, url, imageData));
@@ -282,8 +319,14 @@ async function shareImageData(info: chrome.contextMenus.OnClickData): Promise<st
   if (!url) return null;
   try {
     const res = await fetch(url);
+    if (!res.ok) return null;
+
+    // Reject before downloading when the server advertises an oversized body.
+    const declared = Number(res.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) return null;
+
     const blob = await res.blob();
-    if (!res.ok || !blob.type.startsWith("image/")) return null;
+    if (!blob.type.startsWith("image/") || !imageBytesAllowed(blob.size)) return null;
     return bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
   } catch {
     return null; // fall back to sharing the URL
@@ -311,6 +354,8 @@ function broadcast(msg: unknown): void {
 function loadOptions(): void {
   getStoredOptions((items) => {
     options = items;
+    if (options.enabled) connect();
+    else disableIntegration();
     rebuildContextMenus();
   });
 }
@@ -318,6 +363,12 @@ function loadOptions(): void {
 chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.StorageChange>) => {
   let changed = false;
 
+  if (changes.enabled !== undefined) {
+    options.enabled = changes.enabled.newValue as boolean;
+    if (!options.enabled) disableIntegration();
+    else connect(true);
+    changed = true;
+  }
   if (changes.defaultDeviceId !== undefined) {
     options.defaultDeviceId = changes.defaultDeviceId.newValue as string | null;
     changed = true;
@@ -335,4 +386,3 @@ chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.Sto
 });
 
 loadOptions();
-connect();

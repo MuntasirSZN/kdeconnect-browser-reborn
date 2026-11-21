@@ -2,6 +2,7 @@ import type { ExtensionOptions } from "./generated/types.js";
 
 /** Default options shared by the background and the options page. */
 export const DEFAULT_OPTIONS: ExtensionOptions = {
+  enabled: true,
   defaultOnly: false,
   defaultDeviceId: null,
   disableContextMenu: false,
