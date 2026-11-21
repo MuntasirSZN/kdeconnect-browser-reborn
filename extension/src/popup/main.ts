@@ -3,7 +3,8 @@
  */
 
 import { createIcons } from "lucide";
-import type { Device, Message, StatusData } from "../generated/types.js";
+import type { Device, Message } from "../generated/types.js";
+import type { StatusData } from "../shared-types.js";
 import { DEVICE_ICONS, typeIcon } from "../icons.js";
 import { applyMessage, knownDevices, renderDeviceList } from "../device-list.js";
 import { shareRequest } from "../share.js";

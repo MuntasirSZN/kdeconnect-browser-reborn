@@ -44,13 +44,14 @@ bun run build
 
 ### Regenerating types
 
-`bun run generate-types` (from `extension/`) runs `cargo test` to let `ts-rs`
-rewrite the individual modules in `extension/src/generated/`, then runs
-`scripts/generate-types.ts` to rebuild the `types.ts` barrel.
-Shared hand-written types live in `extension/src/shared-types.ts`.
-If you change `src/types.rs`, re-run the command and commit the changes.
+`cargo test` runs `ts-rs`, which rewrites one module per type in
+`extension/src/generated/`, and the `write_types_barrel` test rebuilds the
+`types.ts` barrel that re-exports them. Wire types are defined in
+`src/types.rs`; extension-only UI/storage shapes live in
+`extension/src/shared-types.ts` and are not sent over native messaging.
+If you change `src/types.rs`, re-run `cargo test` and commit the changes.
 
-`cargo test` alone still regenerates the per-type modules, but not the barrel.
+From `extension/`, `bun run generate-types` is the same thing.
 
 ## Running the tests
 

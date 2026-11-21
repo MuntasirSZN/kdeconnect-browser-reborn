@@ -6,7 +6,8 @@
  * messages between the native host and popup/options views.
  */
 
-import type { Device, Message, ExtensionOptions } from "./generated/types.js";
+import type { Device, Message } from "./generated/types.js";
+import type { ExtensionOptions } from "./shared-types.js";
 import { getStoredOptions } from "./options.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
 import type { MenuStrings } from "./menus.js";

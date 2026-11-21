@@ -1,4 +1,9 @@
-/** Shared types that are not derived from Rust. */
+/**
+ * Extension-only types that are not part of the native-messaging protocol.
+ *
+ * Wire types (`Message`, `Device`, `ShareRequest`, …) are generated from Rust
+ * in `generated/`; these two are UI/storage shapes that the host never sees.
+ */
 
 /** Options stored in `chrome.storage.sync` by the options page. */
 export interface ExtensionOptions {

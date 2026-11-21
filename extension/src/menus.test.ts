@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Device, ExtensionOptions } from "./generated/types.js";
+import type { Device } from "./generated/types.js";
+import type { ExtensionOptions } from "./shared-types.js";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus.js";
 import { deviceMenuIcon } from "./icons.js";
 

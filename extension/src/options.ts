@@ -1,4 +1,4 @@
-import type { ExtensionOptions } from "./generated/types.js";
+import type { ExtensionOptions } from "./shared-types.js";
 
 /** Default options shared by the background and the options page. */
 export const DEFAULT_OPTIONS: ExtensionOptions = {
