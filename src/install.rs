@@ -63,79 +63,78 @@ impl Browser {
 /// Resolve the native messaging hosts directory for a given OS, browser, and
 /// privilege level, matching the Go code's `installMappings` table.
 fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
-    #[cfg(target_os = "linux")]
-    {
-        let base = dirs::config_dir()?;
-        let (user_path, root_path): (&str, &str) = match browser {
-            "default" | "chrome" => (
-                &format!("{}/google-chrome/NativeMessagingHosts", base.display()),
-                "/etc/opt/chrome/native-messaging-hosts",
-            ),
-            "chromium" => (
-                &format!("{}/chromium/NativeMessagingHosts", base.display()),
-                "/etc/chromium/native-messaging-hosts",
-            ),
-            "brave" => (
-                &format!(
-                    "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
-                    base.display()
-                ),
-                "/etc/chromium/native-messaging-hosts",
-            ),
-            "vivaldi" => (
-                &format!("{}/vivaldi/NativeMessagingHosts", base.display()),
-                "/etc/vivaldi/native-messaging-hosts",
-            ),
-            "firefox" => (
-                &format!(
-                    "{}/.mozilla/native-messaging-hosts",
-                    dirs::home_dir()?.display()
-                ),
-                "/usr/lib/mozilla/native-messaging-hosts",
-            ),
-            _ => return None,
-        };
-        let p = if is_root { root_path } else { user_path };
-        Some(PathBuf::from(p))
-    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    let base = dirs::config_dir()?;
 
-    #[cfg(target_os = "macos")]
-    {
-        let lib = dirs::config_dir()?;
-        let (user_path, root_path): (&str, &str) = match browser {
-            "default" | "chrome" => (
-                &format!("{}/Google/Chrome/NativeMessagingHosts", lib.display()),
-                "/Library/Google/Chrome/NativeMessagingHosts",
-            ),
-            "chromium" => (
-                &format!("{}/Chromium/NativeMessagingHosts", lib.display()),
-                "/Library/Application Support/Chromium/NativeMessagingHosts",
-            ),
-            "brave" => (
-                &format!(
-                    "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
-                    lib.display()
+    cfg_select! {
+        target_os = "linux" => {
+            let (user_path, root_path): (&str, &str) = match browser {
+                "default" | "chrome" => (
+                    &format!("{}/google-chrome/NativeMessagingHosts", base.display()),
+                    "/etc/opt/chrome/native-messaging-hosts",
                 ),
-                "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
-            ),
-            "vivaldi" => (
-                &format!("{}/Vivaldi/NativeMessagingHosts", lib.display()),
-                "/Library/Vivaldi/NativeMessagingHosts",
-            ),
-            "firefox" => (
-                &format!("{}/Mozilla/NativeMessagingHosts", lib.display()),
-                "/Library/Application Support/Mozilla/NativeMessagingHosts",
-            ),
-            _ => return None,
-        };
-        let p = if is_root { root_path } else { user_path };
-        Some(PathBuf::from(p))
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        let _ = (browser, is_root);
-        None
+                "chromium" => (
+                    &format!("{}/chromium/NativeMessagingHosts", base.display()),
+                    "/etc/chromium/native-messaging-hosts",
+                ),
+                "brave" => (
+                    &format!(
+                        "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+                        base.display()
+                    ),
+                    "/etc/chromium/native-messaging-hosts",
+                ),
+                "vivaldi" => (
+                    &format!("{}/vivaldi/NativeMessagingHosts", base.display()),
+                    "/etc/vivaldi/native-messaging-hosts",
+                ),
+                "firefox" => (
+                    &format!(
+                        "{}/.mozilla/native-messaging-hosts",
+                        dirs::home_dir()?.display()
+                    ),
+                    "/usr/lib/mozilla/native-messaging-hosts",
+                ),
+                _ => return None,
+            };
+            let p = if is_root { root_path } else { user_path };
+            Some(PathBuf::from(p))
+        },
+        target_os = "macos" => {
+            let (user_path, root_path): (&str, &str) = match browser {
+                "default" | "chrome" => (
+                    &format!("{}/Google/Chrome/NativeMessagingHosts", base.display()),
+                    "/Library/Google/Chrome/NativeMessagingHosts",
+                ),
+                "chromium" => (
+                    &format!("{}/Chromium/NativeMessagingHosts", base.display()),
+                    "/Library/Application Support/Chromium/NativeMessagingHosts",
+                ),
+                "brave" => (
+                    &format!(
+                        "{}/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+                        base.display()
+                    ),
+                    "/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+                ),
+                "vivaldi" => (
+                    &format!("{}/Vivaldi/NativeMessagingHosts", base.display()),
+                    "/Library/Vivaldi/NativeMessagingHosts",
+                ),
+                "firefox" => (
+                    &format!("{}/Mozilla/NativeMessagingHosts", base.display()),
+                    "/Library/Application Support/Mozilla/NativeMessagingHosts",
+                ),
+                _ => return None,
+            };
+            let p = if is_root { root_path } else { user_path };
+            Some(PathBuf::from(p))
+        },
+        _ => {
+            // Other platforms have no native-messaging host directories.
+            let _ = (browser, is_root);
+            None
+        },
     }
 }
 
