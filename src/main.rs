@@ -394,29 +394,14 @@ fn file_url(path: &Path) -> Result<String> {
         .map_err(|()| anyhow::anyhow!("not an absolute path: {}", path.display()))
 }
 
-/// Detect common image formats from their magic bytes.
+/// Detect the image format from its magic bytes using the `image` crate's
+/// signature table (no decoders or encoders are compiled in).
 fn sniff_image_extension(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        return Some("png");
+    if let Ok(format) = image::guess_format(bytes) {
+        return format.extensions_str().first().copied();
     }
-    if bytes.starts_with(b"\xff\xd8\xff") {
-        return Some("jpg");
-    }
-    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        return Some("gif");
-    }
-    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-        return Some("webp");
-    }
-    if bytes.starts_with(b"BM") {
-        return Some("bmp");
-    }
-    if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
-        let brand = &bytes[8..12];
-        if brand == b"avif" || brand == b"avis" {
-            return Some("avif");
-        }
-    }
+
+    // `image` has no SVG support, but browsers serve SVG images too.
     let head = &bytes[..bytes.len().min(512)];
     if String::from_utf8_lossy(head).contains("<svg") {
         return Some("svg");
@@ -571,6 +556,14 @@ mod tests {
             sniff_image_extension(b"\x00\x00\x00\x18ftypavif"),
             Some("avif")
         );
+        // Formats the `image` crate knows but the old hand-rolled sniffing did not.
+        assert!(matches!(
+            sniff_image_extension(b"II*\x00rest"),
+            Some("tif" | "tiff")
+        ));
+        assert_eq!(sniff_image_extension(b"\x00\x00\x01\x00rest"), Some("ico"));
+        assert_eq!(sniff_image_extension(b"qoifrest"), Some("qoi"));
+        // `image` does not handle SVG; browsers still serve it.
         assert_eq!(
             sniff_image_extension(b"<?xml version=\"1.0\"?><svg>"),
             Some("svg")
