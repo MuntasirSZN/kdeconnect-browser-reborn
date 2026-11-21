@@ -13,7 +13,7 @@ use ts_rs::TS;
 /// Messages exchanged with the browser extension over native messaging.
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
-pub struct Message {
+pub(crate) struct Message {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(rename = "type")]
@@ -24,16 +24,7 @@ pub struct Message {
 }
 
 impl Message {
-    #[allow(dead_code)]
-    pub fn new(msg_type: MessageType) -> Self {
-        Self {
-            id: None,
-            msg_type,
-            data: None,
-        }
-    }
-
-    pub fn result(msg_type: MessageType, data: serde_json::Value) -> Self {
+    pub(crate) fn result(msg_type: MessageType, data: serde_json::Value) -> Self {
         Self {
             id: None,
             msg_type,
@@ -45,7 +36,7 @@ impl Message {
 /// Discriminated message type matching Go's `messageType` enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
-pub enum MessageType {
+pub(crate) enum MessageType {
     #[serde(rename = "typeDevices")]
     Devices,
     #[serde(rename = "typeShare")]
@@ -61,7 +52,7 @@ pub enum MessageType {
 /// Share request payload — sent by the browser extension.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
-pub struct ShareRequest {
+pub(crate) struct ShareRequest {
     pub target: String,
     pub url: String,
     /// Base64-encoded image bytes, sent for image context clicks. When present,
@@ -79,7 +70,7 @@ pub struct ShareRequest {
 /// serialises every key to an empty object rather than `null`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(type = "Record<string, never>"))]
-pub struct Empty;
+pub(crate) struct Empty;
 
 impl Serialize for Empty {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -94,7 +85,7 @@ impl Serialize for Empty {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
-pub struct Device {
+pub(crate) struct Device {
     pub id: String,
     #[serde(rename = "type")]
     pub device_type: String,
@@ -112,7 +103,7 @@ impl Device {
     /// Every property is optional. Missing or wrongly typed values fall back to
     /// empty strings, `false`, or an empty plugin map rather than dropping the
     /// device.
-    pub fn from_props(id: &str, props: &HashMap<String, serde_json::Value>) -> Self {
+    pub(crate) fn from_props(id: &str, props: &HashMap<String, serde_json::Value>) -> Self {
         let string = |key: &str| {
             props
                 .get(key)

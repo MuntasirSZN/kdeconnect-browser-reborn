@@ -35,35 +35,35 @@ enum Browser {
 }
 
 impl Browser {
-    fn all() -> &'static [Browser] {
+    fn all() -> &'static [Self] {
         &[
-            Browser::Chrome,
-            Browser::Chromium,
-            Browser::Brave,
-            Browser::Vivaldi,
-            Browser::Firefox,
-            Browser::Custom,
+            Self::Chrome,
+            Self::Chromium,
+            Self::Brave,
+            Self::Vivaldi,
+            Self::Firefox,
+            Self::Custom,
         ]
     }
 
-    fn label(&self) -> &'static str {
+    fn label(self) -> &'static str {
         match self {
-            Browser::Chrome => "Google Chrome",
-            Browser::Chromium => "Chromium",
-            Browser::Brave => "Brave",
-            Browser::Vivaldi => "Vivaldi",
-            Browser::Firefox => "Firefox",
-            Browser::Custom => "Custom",
+            Self::Chrome => "Google Chrome",
+            Self::Chromium => "Chromium",
+            Self::Brave => "Brave",
+            Self::Vivaldi => "Vivaldi",
+            Self::Firefox => "Firefox",
+            Self::Custom => "Custom",
         }
     }
 
-    fn key(&self) -> &'static str {
+    fn key(self) -> &'static str {
         match self {
-            Browser::Chrome | Browser::Custom => "default",
-            Browser::Chromium => "chromium",
-            Browser::Brave => "brave",
-            Browser::Vivaldi => "vivaldi",
-            Browser::Firefox => "firefox",
+            Self::Chrome | Self::Custom => "default",
+            Self::Chromium => "chromium",
+            Self::Brave => "brave",
+            Self::Vivaldi => "vivaldi",
+            Self::Firefox => "firefox",
         }
     }
 }
@@ -84,26 +84,26 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
     // ---- Linux paths ----
     #[cfg(target_os = "linux")]
     {
-        let base = xdg_config.unwrap_or_else(|| format!("{}/.config", home));
+        let base = xdg_config.unwrap_or_else(|| format!("{home}/.config"));
         let (user_path, root_path): (&str, &str) = match browser {
             "default" | "chrome" => (
-                &format!("{}/google-chrome/NativeMessagingHosts", base),
+                &format!("{base}/google-chrome/NativeMessagingHosts"),
                 "/etc/opt/chrome/native-messaging-hosts",
             ),
             "chromium" => (
-                &format!("{}/chromium/NativeMessagingHosts", base),
+                &format!("{base}/chromium/NativeMessagingHosts"),
                 "/etc/chromium/native-messaging-hosts",
             ),
             "brave" => (
-                &format!("{}/BraveSoftware/Brave-Browser/NativeMessagingHosts", base),
+                &format!("{base}/BraveSoftware/Brave-Browser/NativeMessagingHosts"),
                 "/etc/chromium/native-messaging-hosts",
             ),
             "vivaldi" => (
-                &format!("{}/vivaldi/NativeMessagingHosts", base),
+                &format!("{base}/vivaldi/NativeMessagingHosts"),
                 "/etc/vivaldi/native-messaging-hosts",
             ),
             "firefox" => (
-                &format!("{}/.mozilla/native-messaging-hosts", home),
+                &format!("{home}/.mozilla/native-messaging-hosts"),
                 "/usr/lib/mozilla/native-messaging-hosts",
             ),
             _ => return None,
@@ -272,7 +272,7 @@ fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()>
     }
 
     // Render and write manifest
-    let manifest_path = dir.join(format!("{}.json", APP_NAME));
+    let manifest_path = dir.join(format!("{APP_NAME}.json"));
     let ctx = if browser == "firefox" {
         ManifestContext::firefox(daemon_path.to_string_lossy().as_ref())
     } else {
@@ -303,19 +303,19 @@ fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()>
 ///  2. Show browser checkbox menu
 ///  3. If developer mode, prompt for extension ID
 ///  4. For each selected browser, install
-pub fn install(developer: bool) -> Result<()> {
+pub(crate) fn install(developer: bool) -> Result<()> {
     // Matching Go behaviour: check the USER env var (real root has USER=root)
     let is_root = std::env::var("USER").as_deref() == Ok("root");
 
     // ---- Browser selection ----
-    let browser_options: Vec<&str> = Browser::all().iter().map(|b| b.label()).collect();
+    let browser_options: Vec<&str> = Browser::all().iter().copied().map(Browser::label).collect();
     let selections = MultiSelect::new(
         "Select browser(s) for native host installation (Space to select, Enter to confirm)",
         browser_options,
     )
     .with_help_message("↑↓ move, Space select, Enter confirm")
     .prompt()
-    .map_err(|e| anyhow::anyhow!("browser selection cancelled: {}", e))?;
+    .map_err(|e| anyhow::anyhow!("browser selection cancelled: {e}"))?;
 
     if selections.is_empty() {
         anyhow::bail!("no browser selected");
@@ -330,14 +330,15 @@ pub fn install(developer: bool) -> Result<()> {
 
     // If "Custom" is selected, prompt for a path
     let custom_path = if chosen.contains(&Browser::Custom) {
-        let default_path = resolve_path("default", is_root)
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| "./native-messaging-hosts".into());
+        let default_path = resolve_path("default", is_root).map_or_else(
+            || "./native-messaging-hosts".into(),
+            |p| p.to_string_lossy().to_string(),
+        );
         Some(
             Text::new("Enter the destination native messaging hosts path")
                 .with_default(&default_path)
                 .prompt()
-                .map_err(|e| anyhow::anyhow!("custom path cancelled: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("custom path cancelled: {e}"))?,
         )
     } else {
         None
@@ -350,7 +351,7 @@ pub fn install(developer: bool) -> Result<()> {
         Text::new("Chrome extension ID (Enter accepts default)")
             .with_default(DEFAULT_EXTENSION_ID)
             .prompt()
-            .map_err(|e| anyhow::anyhow!("extension ID cancelled: {}", e))?
+            .map_err(|e| anyhow::anyhow!("extension ID cancelled: {e}"))?
     } else {
         DEFAULT_EXTENSION_ID.to_owned()
     };
@@ -360,21 +361,18 @@ pub fn install(developer: bool) -> Result<()> {
 
     // ---- Install for each selected browser ----
     for browser in &chosen {
-        match browser {
-            Browser::Custom => {
-                if let Some(path) = &custom_path {
-                    do_install(path, "default", &extension_id)?;
-                }
+        if browser == &Browser::Custom {
+            if let Some(path) = &custom_path {
+                do_install(path, "default", &extension_id)?;
             }
-            _ => {
-                let path = resolve_path(browser.key(), is_root)
-                    .ok_or_else(|| anyhow::anyhow!("unsupported browser: {}", browser.label()))?;
-                do_install(
-                    path.to_string_lossy().as_ref(),
-                    browser.key(),
-                    &extension_id,
-                )?;
-            }
+        } else {
+            let path = resolve_path(browser.key(), is_root)
+                .ok_or_else(|| anyhow::anyhow!("unsupported browser: {}", browser.label()))?;
+            do_install(
+                path.to_string_lossy().as_ref(),
+                browser.key(),
+                &extension_id,
+            )?;
         }
     }
 

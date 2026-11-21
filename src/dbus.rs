@@ -19,10 +19,10 @@ use crate::types::{Device, Empty, Message, MessageType};
 // Constants
 // ---------------------------------------------------------------------------
 
-pub const DEST: &str = "org.kde.kdeconnect";
-pub const BASE_PATH: &str = "/modules/kdeconnect";
-pub const PLUGIN_SHARE: &str = "kdeconnect_share";
-pub const DAEMON_IFACE: &str = "org.kde.kdeconnect.daemon";
+pub(crate) const DEST: &str = "org.kde.kdeconnect";
+pub(crate) const BASE_PATH: &str = "/modules/kdeconnect";
+pub(crate) const PLUGIN_SHARE: &str = "kdeconnect_share";
+pub(crate) const DAEMON_IFACE: &str = "org.kde.kdeconnect.daemon";
 
 const DEVICE_IFACE: &str = "org.kde.kdeconnect.device";
 
@@ -31,10 +31,10 @@ const DEVICE_IFACE: &str = "org.kde.kdeconnect.device";
 // ---------------------------------------------------------------------------
 
 /// Thread-safe handle to a device's mutable state.
-pub type SharedDevice = Arc<Mutex<DeviceState>>;
+pub(crate) type SharedDevice = Arc<Mutex<DeviceState>>;
 
 /// Mutable device state kept in sync with D-Bus properties.
-pub struct DeviceState {
+pub(crate) struct DeviceState {
     pub device: Device,
     pub object_path: String,
 }
@@ -44,7 +44,7 @@ pub struct DeviceState {
 // ---------------------------------------------------------------------------
 
 /// Open a session-bus connection.
-pub async fn open_connection() -> Result<Connection> {
+pub(crate) async fn open_connection() -> Result<Connection> {
     Connection::session().await.context("open session bus")
 }
 
@@ -53,7 +53,7 @@ pub async fn open_connection() -> Result<Connection> {
 // ---------------------------------------------------------------------------
 
 /// Fetch currently reachable, paired device IDs visible to KDE Connect.
-pub async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
+pub(crate) async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
     let reply = conn
         .call_method(
             Some(DEST),
@@ -98,12 +98,12 @@ async fn get_prop_raw(conn: &Connection, path: &str, prop: &str) -> Result<Owned
             &(DEVICE_IFACE, prop),
         )
         .await
-        .with_context(|| format!("Properties.Get({})", prop))?;
+        .with_context(|| format!("Properties.Get({prop})"))?;
 
     let value: OwnedVariant = reply
         .body()
         .deserialize()
-        .with_context(|| format!("deserialize property '{}'", prop))?;
+        .with_context(|| format!("deserialize property '{prop}'"))?;
     Ok(value)
 }
 
@@ -118,7 +118,7 @@ async fn fetch_all_props(conn: &Connection, path: &str) -> Result<HashMap<String
             &(DEVICE_IFACE,),
         )
         .await
-        .with_context(|| format!("Properties.GetAll({})", path))?;
+        .with_context(|| format!("Properties.GetAll({path})"))?;
 
     reply
         .body()
@@ -134,7 +134,7 @@ fn variant_to_json(v: &OwnedVariant) -> serde_json::Value {
 
 /// Fetch **all** device properties and build a `Device` struct.
 async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
-    let obj_path = format!("{}/devices/{}", BASE_PATH, id);
+    let obj_path = format!("{BASE_PATH}/devices/{id}");
     let raw = fetch_all_props(conn, &obj_path).await?;
     let props: HashMap<String, serde_json::Value> = raw
         .iter()
@@ -149,14 +149,14 @@ async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
 // ---------------------------------------------------------------------------
 
 /// Enumerate visible reachable devices and fetch their current properties.
-pub async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
+pub(crate) async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
     let ids = list_device_ids(conn).await?;
     let mut devices = Vec::with_capacity(ids.len());
 
     for id in &ids {
         match fetch_device(conn, id).await {
             Ok(device) => {
-                let obj_path = format!("{}/devices/{}", BASE_PATH, id);
+                let obj_path = format!("{BASE_PATH}/devices/{id}");
                 devices.push(Arc::new(Mutex::new(DeviceState {
                     device,
                     object_path: obj_path,
@@ -174,14 +174,15 @@ pub async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
 
 /// Serialise the current device cache as the `typeDevices` payload,
 /// keyed by device id.
-pub async fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
+pub(crate) async fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
     let mut map = BTreeMap::new();
     for shared in devices {
         let state = shared.lock().await;
         map.insert(state.device.id.clone(), state.device.clone());
     }
 
-    serde_json::to_value(map).unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
+    serde_json::to_value(map)
+        .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::default()))
 }
 
 // ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ pub async fn devices_snapshot(devices: &[SharedDevice]) -> serde_json::Value {
 // ---------------------------------------------------------------------------
 
 /// Re-read every serializable property on a device and update in place.
-pub async fn refresh_device(conn: &Connection, state: &DeviceState) -> Result<Device> {
+pub(crate) async fn refresh_device(conn: &Connection, state: &DeviceState) -> Result<Device> {
     let dev = fetch_device(conn, &state.device.id).await?;
     Ok(dev)
 }
@@ -204,8 +205,8 @@ pub async fn refresh_device(conn: &Connection, state: &DeviceState) -> Result<De
 ///    1. Check plugin support (caller should have validated).
 ///    2. Check reachable & trusted (caller should have validated).
 ///    3. Call `shareUrl` on `/modules/kdeconnect/devices/{id}/share`.
-pub async fn share_url(conn: &Connection, device_id: &str, url: &str) -> Result<()> {
-    let share_path = format!("{}/devices/{}/share", BASE_PATH, device_id);
+pub(crate) async fn share_url(conn: &Connection, device_id: &str, url: &str) -> Result<()> {
+    let share_path = format!("{BASE_PATH}/devices/{device_id}/share");
     conn.call_method(
         Some(DEST),
         share_path.as_str(),
@@ -214,7 +215,7 @@ pub async fn share_url(conn: &Connection, device_id: &str, url: &str) -> Result<
         &(url),
     )
     .await
-    .with_context(|| format!("shareUrl({}) to {}", url, device_id))?;
+    .with_context(|| format!("shareUrl({url}) to {device_id}"))?;
 
     Ok(())
 }
@@ -225,7 +226,7 @@ pub async fn share_url(conn: &Connection, device_id: &str, url: &str) -> Result<
 
 /// Check whether a device currently supports a plugin, is reachable, and is
 /// trusted — matching the Go `Device.supported()` logic.
-pub fn check_capability(state: &DeviceState, plugin: &str) -> Result<()> {
+pub(crate) fn check_capability(state: &DeviceState, plugin: &str) -> Result<()> {
     let dev = &state.device;
     if !dev.supported_plugins.contains_key(plugin) {
         anyhow::bail!("device {} does not support plugin {}", dev.id, plugin);
@@ -256,11 +257,10 @@ const SIGNAL_MEMBERS: &[&str] = &[
 
 /// Register D-Bus match rules for every property-change signal on a device,
 /// matching the Go `Device.addMatchSignal` calls for each member.
-pub async fn add_device_match_rules(conn: &Connection, object_path: &str) -> Result<()> {
+pub(crate) async fn add_device_match_rules(conn: &Connection, object_path: &str) -> Result<()> {
     for member in SIGNAL_MEMBERS {
         let rule = format!(
-            "type='signal',path='{}',interface='{}',member='{}'",
-            object_path, DEVICE_IFACE, member
+            "type='signal',path='{object_path}',interface='{DEVICE_IFACE}',member='{member}'"
         );
         conn.call_method(
             Some("org.freedesktop.DBus"),
@@ -270,18 +270,15 @@ pub async fn add_device_match_rules(conn: &Connection, object_path: &str) -> Res
             &(rule.as_str()),
         )
         .await
-        .with_context(|| format!("AddMatch({})", member))?;
+        .with_context(|| format!("AddMatch({member})"))?;
     }
     Ok(())
 }
 
 /// Register a match rule for every signal from the KDE Connect daemon
 /// (`deviceAdded`, `deviceRemoved`, `deviceVisibilityChanged`, …).
-pub async fn add_daemon_match_rules(conn: &Connection) -> Result<()> {
-    let rule = format!(
-        "type='signal',path='{}',interface='{}'",
-        BASE_PATH, DAEMON_IFACE
-    );
+pub(crate) async fn add_daemon_match_rules(conn: &Connection) -> Result<()> {
+    let rule = format!("type='signal',path='{BASE_PATH}',interface='{DAEMON_IFACE}'");
     conn.call_method(
         Some("org.freedesktop.DBus"),
         "/org/freedesktop/DBus",
@@ -345,21 +342,21 @@ async fn resync_devices(
                 *guard = fresh;
             }
             let snapshot = devices_snapshot(&snapshot_devices).await;
-            let _ = output_tx.send(Message::result(MessageType::Devices, snapshot));
+            drop(output_tx.send(Message::result(MessageType::Devices, snapshot)));
         }
         Err(e) => {
             warn!(error = %e, "device re-discovery failed");
-            let _ = output_tx.send(Message::result(
+            drop(output_tx.send(Message::result(
                 MessageType::Error,
                 serde_json::Value::String(format!("KDE Connect re-discovery failed: {e:#}")),
-            ));
+            )));
         }
     }
 }
 
 /// Spawn a task that listens for daemon and device signals and pushes
 /// `DeviceUpdate` / `Devices` / `Error` messages onto `output_tx`.
-pub fn spawn_signal_listener(
+pub(crate) fn spawn_signal_listener(
     conn: Connection,
     devices: Arc<Mutex<Vec<SharedDevice>>>,
     output_tx: tokio::sync::mpsc::UnboundedSender<Message>,
@@ -388,9 +385,9 @@ pub fn spawn_signal_listener(
             let (iface, member, path) = {
                 let hdr = msg.header();
                 (
-                    hdr.interface().map(|i| i.to_string()),
-                    hdr.member().map(|m| m.to_string()),
-                    hdr.path().map(|p| p.to_string()),
+                    hdr.interface().map(ToString::to_string),
+                    hdr.member().map(ToString::to_string),
+                    hdr.path().map(ToString::to_string),
                 )
             };
 
@@ -471,7 +468,7 @@ async fn handle_signal(
         MessageType::DeviceUpdate,
         serde_json::to_value(&state.device)?,
     );
-    let _ = output_tx.send(update);
+    drop(output_tx.send(update));
 
     Ok(())
 }

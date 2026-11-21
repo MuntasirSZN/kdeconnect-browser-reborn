@@ -43,17 +43,17 @@ impl IoWrite for BoundedBuffer {
 }
 
 /// Serialises `Message` values to a length-prefixed JSON stream (stdout).
-pub struct Writer<W: AsyncWrite + Unpin> {
+pub(crate) struct Writer<W: AsyncWrite + Unpin> {
     inner: W,
 }
 
 impl<W: AsyncWrite + Unpin> Writer<W> {
-    pub fn new(inner: W) -> Self {
+    pub(crate) fn new(inner: W) -> Self {
         Self { inner }
     }
 
     /// Encode and flush a message.
-    pub async fn write(&mut self, msg: &Message) -> Result<()> {
+    pub(crate) async fn write(&mut self, msg: &Message) -> Result<()> {
         let mut output = BoundedBuffer::default();
         let serialized = serde_json::to_writer(&mut output, msg);
         if output.exceeded {
@@ -75,10 +75,10 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
 }
 
 /// Convenience alias: writes to stdout.
-pub type StdoutWriter = Writer<tokio::io::Stdout>;
+pub(crate) type StdoutWriter = Writer<tokio::io::Stdout>;
 
 impl StdoutWriter {
-    pub fn stdout() -> Self {
+    pub(crate) fn stdout() -> Self {
         Self::new(tokio::io::stdout())
     }
 }
@@ -88,12 +88,12 @@ impl StdoutWriter {
 // ---------------------------------------------------------------------------
 
 /// Reads length-prefixed JSON `Message` values from a byte stream (stdin).
-pub struct Reader<R: AsyncRead + Unpin> {
+pub(crate) struct Reader<R: AsyncRead + Unpin> {
     inner: R,
 }
 
 impl<R: AsyncRead + Unpin> Reader<R> {
-    pub fn new(inner: R) -> Self {
+    pub(crate) fn new(inner: R) -> Self {
         Self { inner }
     }
 
@@ -101,10 +101,10 @@ impl<R: AsyncRead + Unpin> Reader<R> {
     ///
     /// Malformed payloads are logged and skipped transparently (matching the
     /// Go code's behaviour of logging & continuing).
-    pub async fn read(&mut self) -> Result<Option<Message>> {
+    pub(crate) async fn read(&mut self) -> Result<Option<Message>> {
         loop {
             // Read 4-byte length prefix (native endian)
-            let mut len_buf = [0u8; 4];
+            let mut len_buf = [0_u8; 4];
             // EOF is clean only before the first byte of a new frame. A short
             // header after that is a truncated native-messaging frame.
             match self.inner.read(&mut len_buf[..1]).await {
@@ -117,7 +117,7 @@ impl<R: AsyncRead + Unpin> Reader<R> {
                 .await
                 .context("read remaining length prefix")?;
 
-            let mut cursor = std::io::Cursor::new(&len_buf[..]);
+            let mut cursor = io::Cursor::new(&len_buf[..]);
             let msg_len = ReadBytesExt::read_u32::<NativeEndian>(&mut cursor)
                 .context("parse length prefix")?;
             if msg_len > MAX_MESSAGE_SIZE {
@@ -127,11 +127,11 @@ impl<R: AsyncRead + Unpin> Reader<R> {
             }
 
             // Read the JSON payload
-            let mut buf = vec![0u8; msg_len as usize];
+            let mut buf = vec![0_u8; msg_len as usize];
             self.inner
                 .read_exact(&mut buf)
                 .await
-                .with_context(|| format!("read {} byte payload", msg_len))?;
+                .with_context(|| format!("read {msg_len} byte payload"))?;
 
             match serde_json::from_slice::<Message>(&buf) {
                 Ok(msg) => return Ok(Some(msg)),
@@ -147,10 +147,10 @@ impl<R: AsyncRead + Unpin> Reader<R> {
 }
 
 /// Convenience alias: reads from stdin.
-pub type StdinReader = Reader<tokio::io::Stdin>;
+pub(crate) type StdinReader = Reader<tokio::io::Stdin>;
 
 impl StdinReader {
-    pub fn stdin() -> Self {
+    pub(crate) fn stdin() -> Self {
         Self::new(tokio::io::stdin())
     }
 }
@@ -213,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn partial_length_prefix_is_a_protocol_error() {
-        let mut reader = Reader::new(&[0u8, 1][..]);
+        let mut reader = Reader::new(&[0_u8, 1][..]);
         assert!(reader.read().await.is_err());
     }
 

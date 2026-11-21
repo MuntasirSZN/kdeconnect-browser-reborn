@@ -12,6 +12,18 @@
 //! | `--version`   | Print version info and exit |
 //! | `--devices`   | List known KDE Connect devices and exit |
 
+#![deny(missing_docs)]
+// LINEBENDER LINT SET - lib.rs - v4
+// See https://linebender.org/wiki/canonical-lints/
+// These lints shouldn't apply to examples or tests.
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+// These lints shouldn't apply to examples.
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+// Targeting e.g. 32-bit means structs containing usize can give false positives for 64-bit.
+#![cfg_attr(target_pointer_width = "64", warn(clippy::trivially_copy_pass_by_ref))]
+// END LINEBENDER LINT SET
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -77,7 +89,10 @@ struct Cli {
     /// host (Chrome: extension origin; Firefox: manifest path + extension ID).
     /// Ignored.
     #[arg(hide = true, num_args = 0..)]
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "browser launchers pass these args; the daemon ignores them"
+    )]
     browser_args: Vec<String>,
 }
 
@@ -86,6 +101,10 @@ struct Cli {
 // ---------------------------------------------------------------------------
 
 #[tokio::main(flavor = "current_thread")]
+#[expect(
+    clippy::print_stdout,
+    reason = "CLI output: version and device listings go to stdout"
+)]
 async fn main() -> Result<()> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stderr());
     // Initialise structured logging to stderr (replaces Go's log()).
@@ -101,8 +120,7 @@ async fn main() -> Result<()> {
     // --version
     if cli.version {
         println!(
-            "kdeconnect-browser-reborn version {} (protocol {}), built with rustc",
-            CLI_VERSION, PROTOCOL_VERSION,
+            "kdeconnect-browser-reborn version {CLI_VERSION} (protocol {PROTOCOL_VERSION}), built with rustc",
         );
         return Ok(());
     }
@@ -229,7 +247,7 @@ async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Resul
     // finish instead of waiting forever.
     drop(output_tx);
     signal_task.abort();
-    let _ = stdout_handle.await;
+    drop(stdout_handle.await);
 
     Ok(())
 }
@@ -254,7 +272,7 @@ where
 
     tokio::select! {
         biased;
-        _ = output_tx.closed() => InputEvent::StdoutClosed,
+        () = output_tx.closed() => InputEvent::StdoutClosed,
         result = reader.read() => InputEvent::Read(result),
     }
 }
@@ -271,7 +289,7 @@ async fn write_protocol_error(text: &str) {
         MessageType::Error,
         serde_json::Value::String(text.to_owned()),
     );
-    let _ = writer.write(&msg).await;
+    drop(writer.write(&msg).await);
 }
 
 async fn handle_message(
@@ -285,15 +303,15 @@ async fn handle_message(
             let current_devices = devices.lock().await.clone();
             let data = dbus::devices_snapshot(&current_devices).await;
             let response = Message::result(MessageType::Devices, data);
-            let _ = output_tx.send(response);
+            drop(output_tx.send(response));
         }
 
         MessageType::Share => {
             if let Err(e) = handle_share(conn, devices, msg).await {
-                let _ = output_tx.send(Message::result(
+                drop(output_tx.send(Message::result(
                     MessageType::Error,
                     serde_json::Value::String(format!("{e:#}")),
-                ));
+                )));
             }
         }
 
@@ -302,7 +320,7 @@ async fn handle_message(
                 MessageType::Version,
                 serde_json::Value::String(PROTOCOL_VERSION.to_owned()),
             );
-            let _ = output_tx.send(response);
+            drop(output_tx.send(response));
         }
 
         MessageType::DeviceUpdate => {
@@ -320,7 +338,7 @@ async fn handle_message(
 }
 
 /// Decode helper: uses the `Simd` engine, which picks the best instruction
-/// set at runtime (AVX2 on x86_64, NEON on aarch64) and falls back to the
+/// set at runtime (AVX2 on `x86_64`, NEON on aarch64) and falls back to the
 /// scalar engine. Other targets use the scalar `STANDARD` engine.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 fn decode_image_data(data: &str) -> Result<Vec<u8>> {
@@ -355,8 +373,7 @@ fn write_image_to_temp(share: &ShareRequest) -> Result<String> {
         .filter(|ext| {
             !ext.is_empty() && ext.len() <= 4 && ext.bytes().all(|b| b.is_ascii_alphanumeric())
         })
-        .map(|ext| ext.to_lowercase())
-        .unwrap_or_else(|| "png".to_owned());
+        .map_or_else(|| "png".to_owned(), str::to_lowercase);
 
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -384,9 +401,10 @@ async fn handle_share(
     // The extension sends the image bytes directly for image context clicks —
     // KDE Connect shares local files via their file:// URL, so write the data
     // to a temp file and share that instead of the link.
-    let url = match share.image_data.is_some() {
-        true => write_image_to_temp(&share)?,
-        false => share.url.clone(),
+    let url = if share.image_data.is_some() {
+        write_image_to_temp(&share)?
+    } else {
+        share.url.clone()
     };
 
     if share.image_data.is_none() && !is_shareable_url(&url) {
