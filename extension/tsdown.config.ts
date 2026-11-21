@@ -2,7 +2,7 @@ import { defineConfig } from "tsdown";
 
 export default defineConfig({
   entry: {
-    background: "src/background.ts",
+    background: "src/background/index",
     "popup/main": "src/popup/main.ts",
     "options/main": "src/options/main.ts",
   },

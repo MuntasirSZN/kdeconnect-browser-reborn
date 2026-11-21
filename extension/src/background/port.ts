@@ -1,59 +1,37 @@
 /**
- * Background service worker (MV3).
- *
- * Owns the native messaging port to `com.0xc0dedbad.kdeconnect_chrome`,
- * caches device state, updates context menus and badge, and routes
- * messages between the native host and popup/options views.
+ * Native-messaging port lifecycle and request routing.
  */
 
-import type { Device, Message } from "./generated/types";
-import type { ExtensionOptions } from "./shared-types";
-import { getStoredOptions } from "./options";
-import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus";
-import type { MenuStrings } from "./menus";
-import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "./reconnect";
-import type { RetryState } from "./reconnect";
-import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "./share";
+import type { Device, Message } from "../generated/types";
+import {
+  broadcast,
+  clearBadge,
+  clearDevices,
+  getOptions,
+  setBadge,
+  setDevices,
+  updateDevice,
+} from "./state";
+import { rebuildContextMenus } from "./menus";
+import { parseMenuId, resolveMenuUrl } from "../menus";
+import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "../reconnect";
+import type { RetryState } from "../reconnect";
+import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "../share";
 
 const HOSTNAME = "com.0xc0dedbad.kdeconnect_chrome";
 const PROTOCOL_VERSION = "0.1.4";
 
 let port: chrome.runtime.Port | null = null;
-let knownDevices: Record<string, Device> = {};
-let options: ExtensionOptions = {
-  enabled: true,
-  defaultOnly: false,
-  defaultDeviceId: null,
-  disableContextMenu: false,
-};
-
-interface BadgeState {
-  text: string;
-  color: [number, number, number, number];
-}
-
-const badges: Record<string, BadgeState> = {};
+let retry: RetryState = createRetryState();
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Firefox sets `port.error` on disconnect instead of `lastError`. */
 interface FirefoxPort {
   error?: { message?: string };
 }
 
-let retry: RetryState = createRetryState();
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Current device snapshot keyed by device ID. */
-export function getDevices(): Readonly<Record<string, Device>> {
-  return knownDevices;
-}
-
-/** Current user options. */
-export function getOptions(): Readonly<ExtensionOptions> {
-  return options;
-}
-
-function connect(isUserAction = false): void {
-  if (port || !options.enabled) return;
+export function connect(isUserAction = false): void {
+  if (port || !getOptions().enabled) return;
 
   if (reconnectTimer !== null) {
     clearTimeout(reconnectTimer);
@@ -118,21 +96,15 @@ function onDisconnect(thisPort: chrome.runtime.Port): void {
   }
 }
 
-/** Drop cached devices and tell every view the list is empty. */
-function clearDevices(): void {
-  knownDevices = {};
-  broadcast({ type: "typeDevices", data: {} });
-}
-
 /** Connect on demand; user-initiated calls get a fresh backoff budget. */
 function ensurePort(): chrome.runtime.Port | null {
-  if (!options.enabled) return null;
+  if (!getOptions().enabled) return null;
   if (!port) connect(true);
   return port;
 }
 
 /** Tear down the native port without scheduling a reconnect. */
-function disableIntegration(): void {
+export function disableIntegration(): void {
   const current = port;
   port = null;
   current?.disconnect();
@@ -177,11 +149,12 @@ function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
   switch (msg.type) {
     case "typeDeviceUpdate":
       updateDevice(msg.data as Device);
+      rebuildContextMenus();
       broadcast(msg);
       break;
 
     case "typeDevices": {
-      knownDevices = (msg.data ?? {}) as Record<string, Device>;
+      setDevices(msg.data as Record<string, Device>);
       rebuildContextMenus();
       broadcast(msg);
       break;
@@ -234,73 +207,13 @@ function onPortMessage(raw: unknown, thisPort: chrome.runtime.Port): void {
   }
 }
 
-function updateDevice(device: Device): void {
-  knownDevices[device.id] = device;
-  rebuildContextMenus();
-}
+chrome.contextMenus.onClicked.addListener(handleMenuClick);
 
-function setBadge(source: string, state: BadgeState): void {
-  badges[source] = state;
-  applyBadge();
-}
-
-function clearBadge(source: string): void {
-  delete badges[source];
-  applyBadge();
-}
-
-function applyBadge(): void {
-  const keys = Object.keys(badges);
-  if (keys.length === 0) {
-    void chrome.action.setBadgeText({ text: "" });
-    return;
-  }
-  const last = badges[keys[keys.length - 1]];
-  void chrome.action.setBadgeText({ text: last.text });
-  void chrome.action.setBadgeBackgroundColor({ color: last.color });
-}
-
-const message = (key: string, subs: string[] = [], fallback = ""): string =>
-  chrome.i18n.getMessage(key, subs) || fallback;
-
-const menuStrings: MenuStrings = {
-  open: (name) => message("kdeconnect_open_device", [name], `Open on '${name}'`),
-  call: (name) => message("kdeconnect_call_device", [name], `Call on '${name}'`),
-};
-
-const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
-
-let menuRebuildInProgress = false;
-let menuRebuildQueued = false;
-
-function rebuildContextMenus(): void {
-  menuRebuildQueued = true;
-  if (menuRebuildInProgress) return;
-
-  menuRebuildInProgress = true;
-  const rebuild = (): void => {
-    menuRebuildQueued = false;
-    chrome.contextMenus.removeAll(() => {
-      // Coalesce updates that arrived while removeAll was pending. Running
-      // overlapping removeAll callbacks can otherwise leave stale/empty menus.
-      if (menuRebuildQueued) {
-        rebuild();
-        return;
-      }
-
-      for (const entry of buildMenuSpec(knownDevices, options, menuStrings, IS_FIREFOX)) {
-        chrome.contextMenus.create(entry, () => void chrome.runtime.lastError);
-      }
-
-      menuRebuildInProgress = false;
-      if (menuRebuildQueued) rebuildContextMenus();
-    });
-  };
-
-  rebuild();
-}
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+/** Dispatch a `typeShare` from a menu item click to the native host. */
+async function handleMenuClick(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab,
+): Promise<void> {
   const parsed = parseMenuId(String(info.menuItemId));
   if (!parsed) return;
 
@@ -312,7 +225,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   resetRetry(retry);
   ensurePort()?.postMessage(shareRequest(parsed.deviceId, url, imageData));
-});
+}
 
 /** Fetch the image bytes of an image-context click, or null if unavailable. */
 async function shareImageData(info: chrome.contextMenus.OnClickData): Promise<string | null> {
@@ -342,48 +255,3 @@ function bytesToBase64(bytes: Uint8Array): string {
   }
   return btoa(out);
 }
-
-/**
- * Broadcast a message to all extension views (popup, options).
- */
-function broadcast(msg: unknown): void {
-  chrome.runtime.sendMessage(msg).catch(() => {
-    // Popup/options may be closed — ignore send errors.
-  });
-}
-
-function loadOptions(): void {
-  getStoredOptions((items) => {
-    options = items;
-    if (options.enabled) connect();
-    else disableIntegration();
-    rebuildContextMenus();
-  });
-}
-
-chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.StorageChange>) => {
-  let changed = false;
-
-  if (changes.enabled !== undefined) {
-    options.enabled = changes.enabled.newValue as boolean;
-    if (!options.enabled) disableIntegration();
-    else connect(true);
-    changed = true;
-  }
-  if (changes.defaultDeviceId !== undefined) {
-    options.defaultDeviceId = changes.defaultDeviceId.newValue as string | null;
-    changed = true;
-  }
-  if (changes.defaultOnly !== undefined) {
-    options.defaultOnly = changes.defaultOnly.newValue as boolean;
-    changed = true;
-  }
-  if (changes.disableContextMenu !== undefined) {
-    options.disableContextMenu = changes.disableContextMenu.newValue as boolean;
-    changed = true;
-  }
-
-  if (changed) rebuildContextMenus();
-});
-
-loadOptions();
