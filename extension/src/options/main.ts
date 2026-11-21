@@ -1,69 +1,15 @@
 /**
- * Options page — default device, context menu toggle.
+ * Options page — entry point: saving, restoring, messaging.
  */
 
-import { Check, createIcons } from "lucide";
 import type { Message } from "../generated/types";
-import { applyMessage, knownDevices, renderDeviceList } from "../device-list";
+import { applyMessage } from "../device-list";
 import { getStoredOptions } from "../options";
-
-let defaultDeviceId: string | null = null;
-let saveStatusTimeout: ReturnType<typeof setTimeout> | null = null;
+import { setDefaultDeviceId, getDefaultDeviceId } from "./state";
+import { writeDevices, setSaveStatus, toggleDefaultDevice } from "./render";
 
 function sendMessage(msg: Message): void {
   chrome.runtime.sendMessage(msg).catch(() => {});
-}
-
-function writeDevices(): void {
-  const select = document.getElementById("defaultDevice") as HTMLSelectElement | null;
-  if (!select) return;
-
-  const selectedDeviceId = select.value || defaultDeviceId;
-  renderDeviceList(select, knownDevices, (device) => {
-    const opt = document.createElement("option");
-    opt.value = device.id;
-    opt.disabled = !(device.isReachable && device.isTrusted);
-    opt.textContent = device.name;
-    return opt;
-  });
-
-  select.value = selectedDeviceId ?? "";
-}
-
-function toggleDefaultDevice(show: boolean): void {
-  const el = document.getElementById("defaultDeviceContainer");
-  if (el) el.classList.toggle("hidden", !show);
-}
-
-function setSaveStatus(error: { message?: string } | null): void {
-  const status = document.getElementById("status");
-  if (!status) return;
-
-  if (saveStatusTimeout !== null) {
-    clearTimeout(saveStatusTimeout);
-    saveStatusTimeout = null;
-  }
-
-  status.innerHTML = "";
-
-  if (error) {
-    status.classList.add("error");
-    status.textContent = `Save failed: ${error.message ?? "unknown error"}`;
-    return;
-  }
-
-  status.classList.remove("error");
-  const icon = document.createElement("i");
-  icon.dataset.lucide = "Check";
-  icon.setAttribute("aria-hidden", "true");
-  icon.className = "status-icon";
-  status.append(icon, document.createTextNode("Saved…"));
-  createIcons({ icons: { Check } });
-
-  saveStatusTimeout = setTimeout(() => {
-    status.innerHTML = "";
-    saveStatusTimeout = null;
-  }, 750);
 }
 
 function saveOptions(): void {
@@ -83,7 +29,7 @@ function saveOptions(): void {
       disableContextMenu: newDisableContextMenu,
     },
     () => {
-      defaultDeviceId = newDefaultDeviceId;
+      setDefaultDeviceId(newDefaultDeviceId);
       setSaveStatus(chrome.runtime.lastError ?? null);
     },
   );
@@ -91,7 +37,7 @@ function saveOptions(): void {
 
 function restoreOptions(): void {
   getStoredOptions((items) => {
-    defaultDeviceId = items.defaultDeviceId;
+    setDefaultDeviceId(items.defaultDeviceId);
     const enabled = document.getElementById("enabled") as HTMLInputElement;
     const defaultOnly = document.getElementById("defaultOnly") as HTMLInputElement;
     const disableContextMenu = document.getElementById("disableContextMenu") as HTMLInputElement;
@@ -111,7 +57,7 @@ function restoreOptions(): void {
       disableContextMenu.checked = items.disableContextMenu;
     }
     if (defaultDevice) {
-      defaultDevice.value = defaultDeviceId ?? "";
+      defaultDevice.value = getDefaultDeviceId() ?? "";
     }
   });
 }

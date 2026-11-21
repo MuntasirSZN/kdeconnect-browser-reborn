@@ -67,7 +67,9 @@ export function writeDevices(onShare: (device: Device) => void): void {
   const container = document.getElementById("devices");
   if (!container) return;
 
-  renderDeviceList(container, knownDevices, (device) => renderDevice(device, () => onShare(device)));
+  renderDeviceList(container, knownDevices, (device) =>
+    renderDevice(device, () => onShare(device)),
+  );
   if (container.children.length === 0) {
     renderEmpty("No devices found…");
   } else {
