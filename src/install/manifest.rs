@@ -75,39 +75,51 @@ pub(crate) fn select_daemon_binary() -> Result<PathBuf> {
     Ok(pick_daemon_binary(&exe))
 }
 
-/// Copy the selected binary and write the manifest for one browser family.
-pub(crate) fn do_install(
-    target_dir: &str,
-    family: ManifestFamily,
-    extension_id: &str,
-) -> Result<()> {
-    let dir = PathBuf::from(target_dir);
-    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
-    let dir = std::fs::canonicalize(&dir)
-        .with_context(|| format!("resolve installation directory {}", dir.display()))?;
+/// File name the host is copied to; Windows needs the `.exe` suffix.
+pub(crate) fn host_binary_name() -> String {
+    if cfg!(windows) {
+        format!("{BINARY_NAME}.exe")
+    } else {
+        BINARY_NAME.to_owned()
+    }
+}
 
-    // Destination path must be absolute in the native messaging manifest.
-    let daemon_path = dir.join(BINARY_NAME);
+fn prepare_dir(dir: &Path) -> Result<PathBuf> {
+    std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+    std::fs::canonicalize(dir)
+        .with_context(|| format!("resolve installation directory {}", dir.display()))
+}
 
-    // Copy self
+/// Copy the running binary into `dir` and return its absolute path.
+pub(crate) fn install_host_binary(dir: &Path) -> Result<PathBuf> {
+    let dir = prepare_dir(dir)?;
+    let dest = dir.join(host_binary_name());
     let exe = select_daemon_binary().context("select host binary")?;
-    std::fs::copy(&exe, &daemon_path)
-        .with_context(|| format!("copy {} -> {}", exe.display(), daemon_path.display()))?;
+    std::fs::copy(&exe, &dest)
+        .with_context(|| format!("copy {} -> {}", exe.display(), dest.display()))?;
     // On unix, restore executable bit (copy may drop it)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&daemon_path, std::fs::Permissions::from_mode(0o755))
+        std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
             .context("set executable permission")?;
     }
+    Ok(dest)
+}
 
-    // Render and write manifest
+/// Render and write the manifest for `family`, returning its absolute path.
+pub(crate) fn write_manifest(
+    dir: &Path,
+    family: ManifestFamily,
+    host: &Path,
+    extension_id: &str,
+) -> Result<PathBuf> {
+    let dir = prepare_dir(dir)?;
     let manifest_path = dir.join(format!("{HOST_NAME}.json"));
+    let host = host.to_string_lossy();
     let ctx = match family {
-        ManifestFamily::Gecko => ManifestContext::firefox(daemon_path.to_string_lossy().as_ref()),
-        ManifestFamily::Chromium => {
-            ManifestContext::chrome(daemon_path.to_string_lossy().as_ref(), extension_id)
-        }
+        ManifestFamily::Gecko => ManifestContext::firefox(&host),
+        ManifestFamily::Chromium => ManifestContext::chrome(&host, extension_id),
     };
     let content = render_manifest(family, &ctx)?;
 
@@ -118,8 +130,20 @@ pub(crate) fn do_install(
 
     std::fs::write(&manifest_path, &content)
         .with_context(|| format!("write {}", manifest_path.display()))?;
+    Ok(manifest_path)
+}
 
-    info!(binary = %daemon_path.display(), manifest = %manifest_path.display(), "installed for {family:?}");
+/// Copy the host and write its manifest into one directory (Unix layout).
+#[cfg(not(windows))]
+pub(crate) fn do_install(
+    target_dir: &str,
+    family: ManifestFamily,
+    extension_id: &str,
+) -> Result<()> {
+    let dir = PathBuf::from(target_dir);
+    let host = install_host_binary(&dir)?;
+    let manifest = write_manifest(&dir, family, &host, extension_id)?;
+    info!(binary = %host.display(), manifest = %manifest.display(), "installed host for {family:?}");
     Ok(())
 }
 
@@ -205,6 +229,56 @@ mod tests {
                 .unwrap();
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
         assert!(json.get("allowed_origins").is_none());
+    }
+
+    #[test]
+    fn host_binary_name_has_an_exe_suffix_on_windows() {
+        let name = host_binary_name();
+        if cfg!(windows) {
+            assert_eq!(name, format!("{BINARY_NAME}.exe"));
+        } else {
+            assert_eq!(name, BINARY_NAME);
+        }
+    }
+
+    #[test]
+    fn write_manifest_returns_the_written_path() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let dir = temp.path().join("gecko");
+        let host = temp.path().join(host_binary_name());
+        std::fs::write(&host, b"x").unwrap();
+
+        let path = write_manifest(&dir, ManifestFamily::Gecko, &host, "").expect("manifest");
+
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        assert_eq!(name, format!("{HOST_NAME}.json"));
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(json["path"], host.to_string_lossy().as_ref());
+        assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
+    }
+
+    #[test]
+    fn write_manifest_keeps_the_two_families_apart() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let host = temp.path().join(host_binary_name());
+        std::fs::write(&host, b"x").unwrap();
+
+        let chromium = write_manifest(
+            &temp.path().join("chromium"),
+            ManifestFamily::Chromium,
+            &host,
+            DEFAULT_EXTENSION_ID,
+        )
+        .unwrap();
+        let gecko =
+            write_manifest(&temp.path().join("gecko"), ManifestFamily::Gecko, &host, "").unwrap();
+
+        assert_ne!(chromium, gecko);
+        let chromium_json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&chromium).unwrap()).unwrap();
+        assert!(chromium_json.get("allowed_origins").is_some());
+        assert!(chromium_json.get("allowed_extensions").is_none());
     }
 
     #[test]

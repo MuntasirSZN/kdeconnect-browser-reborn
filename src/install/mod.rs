@@ -11,7 +11,9 @@ use anyhow::{anyhow, bail, Result};
 use inquire::{MultiSelect, Text};
 use tracing::info;
 
-use manifest::{do_install, is_valid_chrome_extension_id, ManifestFamily, DEFAULT_EXTENSION_ID};
+#[cfg(not(windows))]
+use manifest::do_install;
+use manifest::{is_valid_chrome_extension_id, ManifestFamily, DEFAULT_EXTENSION_ID};
 
 /// Browser kind and its display label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +55,13 @@ impl Browser {
         }
     }
 
+    #[cfg_attr(
+        windows,
+        allow(
+            dead_code,
+            reason = "Windows installs register via registry roots, not keys"
+        )
+    )]
     fn key(self) -> &'static str {
         match self {
             Self::Chrome | Self::Custom => "default",
@@ -72,10 +81,37 @@ impl Browser {
             _ => ManifestFamily::Chromium,
         }
     }
+
+    /// `HKCU` subkey holding this browser's native-messaging keys, on Windows.
+    ///
+    /// Unused in library builds on Unix, where `install()` resolves directories
+    /// instead; the table is covered by `mod.rs` tests everywhere.
+    #[cfg_attr(
+        not(windows),
+        allow(
+            dead_code,
+            reason = "registration is a Windows-only path; the table is tested elsewhere"
+        )
+    )]
+    fn registry_root(self) -> Option<&'static str> {
+        match self {
+            Self::Chrome => Some(r"Software\Google\Chrome\NativeMessagingHosts"),
+            Self::Chromium => Some(r"Software\Chromium\NativeMessagingHosts"),
+            Self::Edge => Some(r"Software\Microsoft\Edge\NativeMessagingHosts"),
+            Self::Brave => Some(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts"),
+            Self::Vivaldi => Some(r"Software\Vivaldi\NativeMessagingHosts"),
+            Self::Firefox | Self::Tor => Some(r"Software\Mozilla\NativeMessagingHosts"),
+            Self::Custom => None,
+        }
+    }
 }
 
 /// `<bundle>/Browser/TorBrowser/Data/Browser/.mozilla/native-messaging-hosts`,
 /// but only when the bundle actually has that layout.
+#[cfg_attr(
+    windows,
+    allow(dead_code, reason = "directory discovery is the Unix install flow")
+)]
 pub(crate) fn tor_native_dir(bundle: &Path) -> Option<PathBuf> {
     let data = bundle.join("Browser/TorBrowser/Data/Browser");
     data.is_dir()
@@ -86,6 +122,10 @@ pub(crate) fn tor_native_dir(bundle: &Path) -> Option<PathBuf> {
 ///
 /// Tor Browser has no fixed Linux user path, and packagers put the bundle in
 /// different places, so probe the layouts seen in the wild in preference order.
+#[cfg_attr(
+    windows,
+    allow(dead_code, reason = "directory discovery is the Unix install flow")
+)]
 pub(crate) fn discover_tor_bundle(home: &Path) -> Option<PathBuf> {
     let mut candidates = vec![home.join("tor-browser")];
 
@@ -133,6 +173,13 @@ pub(crate) fn discover_tor_bundle(home: &Path) -> Option<PathBuf> {
 
 /// Resolve the native messaging hosts directory for a given OS, browser, and
 /// privilege level, matching the Go code's `installMappings` table.
+#[cfg_attr(
+    windows,
+    allow(
+        dead_code,
+        reason = "Windows installs register via registry roots, not directories"
+    )
+)]
 fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     let base = dirs::config_dir()?;
@@ -233,44 +280,21 @@ fn resolve_path(browser: &str, is_root: bool) -> Option<PathBuf> {
 
 /// Run the interactive install flow.
 pub(crate) fn install(developer: bool) -> Result<()> {
-    // Matching Go behaviour: check the USER env var (real root has USER=root)
-    let is_root = std::env::var("USER").as_deref() == Ok("root");
+    // Matching Go behaviour: check the USER env var (real root has USER=root).
+    // Windows has no privilege levels: every install is per-user.
+    let is_root = !cfg!(windows) && std::env::var("USER").as_deref() == Ok("root");
+    #[cfg(windows)]
+    let _ = is_root;
 
-    let browser_options: Vec<&str> = Browser::all().iter().copied().map(Browser::label).collect();
-    let selections = MultiSelect::new(
-        "Select browser(s) for native host installation (Space to select, Enter to confirm)",
-        browser_options,
-    )
-    .with_help_message("↑↓ move, Space select, Enter confirm")
-    .prompt()
-    .map_err(|e| anyhow!("browser selection cancelled: {e}"))?;
+    let chosen = select_browsers()?;
 
-    if selections.is_empty() {
-        bail!("no browser selected");
-    }
+    // If "Custom" is selected, ask where to install:
+    // a directory on Unix, an `HKCU` registry root on Windows.
+    #[cfg(windows)]
+    let custom_root = prompt_custom_root(&chosen)?;
 
-    // Map labels back to Browser variants
-    let chosen: Vec<Browser> = Browser::all()
-        .iter()
-        .filter(|b| selections.contains(&b.label()))
-        .copied()
-        .collect();
-
-    // If "Custom" is selected, prompt for a path
-    let custom_path = if chosen.contains(&Browser::Custom) {
-        let default_path = resolve_path("default", is_root).map_or_else(
-            || "./native-messaging-hosts".into(),
-            |p| p.to_string_lossy().to_string(),
-        );
-        Some(
-            Text::new("Enter the destination native messaging hosts path")
-                .with_default(&default_path)
-                .prompt()
-                .map_err(|e| anyhow!("custom path cancelled: {e}"))?,
-        )
-    } else {
-        None
-    };
+    #[cfg(not(windows))]
+    let custom_path = prompt_custom_path(&chosen, is_root)?;
 
     // Chromium-family installs need the developer-supplied Chrome extension ID
     // (Firefox and Tor Browser both use the fixed Gecko id).
@@ -289,37 +313,94 @@ pub(crate) fn install(developer: bool) -> Result<()> {
         bail!("invalid Chrome extension ID: expected 32 lowercase characters from a-p");
     }
 
-    // Tor Browser reads `/usr/lib/mozilla/native-messaging-hosts` as root but has no
-    // fixed user-level path, so a user install discovers the bundle or prompts.
-    let tor_path = if chosen.contains(&Browser::Tor) {
-        if let Some(path) = resolve_path("tor", is_root) {
-            Some(path)
-        } else {
-            let home =
-                dirs::home_dir().ok_or_else(|| anyhow!("cannot determine home directory"))?;
-            let default = discover_tor_bundle(&home)
-                .unwrap_or_else(|| home.join("tor-browser"))
-                .display()
-                .to_string();
-            let bundle = Text::new("Tor Browser installation directory (contains Browser/)")
-                .with_default(&default)
-                .prompt()
-                .map_err(|e| anyhow!("Tor Browser path cancelled: {e}"))?;
-            Some(tor_native_dir(Path::new(&bundle)).ok_or_else(|| {
-                anyhow!(
-                    "not a Tor Browser bundle: {bundle} (expected Browser/TorBrowser/Data/Browser)"
-                )
-            })?)
-        }
-    } else {
-        None
-    };
+    #[cfg(windows)]
+    {
+        install_windows(&chosen, &extension_id, custom_root.as_deref())?;
+        info!("Done.");
+        Ok(())
+    }
 
-    for browser in &chosen {
+    #[cfg(not(windows))]
+    {
+        let tor_path = resolve_tor_path(&chosen, is_root)?;
+        install_unix(
+            &chosen,
+            custom_path.as_ref(),
+            tor_path.as_ref(),
+            &extension_id,
+            is_root,
+        )?;
+        info!("Done.");
+        Ok(())
+    }
+}
+
+/// Show the multi-select browser prompt and map labels back to variants.
+fn select_browsers() -> Result<Vec<Browser>> {
+    let browser_options: Vec<&str> = Browser::all().iter().copied().map(Browser::label).collect();
+    let selections = MultiSelect::new(
+        "Select browser(s) for native host installation (Space to select, Enter to confirm)",
+        browser_options,
+    )
+    .with_help_message("↑↓ move, Space select, Enter confirm")
+    .prompt()
+    .map_err(|e| anyhow!("browser selection cancelled: {e}"))?;
+
+    if selections.is_empty() {
+        bail!("no browser selected");
+    }
+
+    Ok(Browser::all()
+        .iter()
+        .filter(|b| selections.contains(&b.label()))
+        .copied()
+        .collect())
+}
+
+/// Windows Custom prompt: the `HKCU` registry root for this browser.
+#[cfg(windows)]
+fn prompt_custom_root(chosen: &[Browser]) -> Result<Option<String>> {
+    if !chosen.contains(&Browser::Custom) {
+        return Ok(None);
+    }
+    Text::new(r"Registry root under HKEY_CURRENT_USER (e.g. Software\Vendor\NativeMessagingHosts)")
+        .with_default(r"Software\Custom\NativeMessagingHosts")
+        .prompt()
+        .map_err(|e| anyhow!("custom registry root cancelled: {e}"))
+        .map(Some)
+}
+
+/// Unix Custom prompt: the destination directory.
+#[cfg(not(windows))]
+fn prompt_custom_path(chosen: &[Browser], is_root: bool) -> Result<Option<String>> {
+    if !chosen.contains(&Browser::Custom) {
+        return Ok(None);
+    }
+    let default_path = resolve_path("default", is_root).map_or_else(
+        || "./native-messaging-hosts".into(),
+        |p| p.to_string_lossy().to_string(),
+    );
+    Text::new("Enter the destination native messaging hosts path")
+        .with_default(&default_path)
+        .prompt()
+        .map_err(|e| anyhow!("custom path cancelled: {e}"))
+        .map(Some)
+}
+
+/// Unix install: copy the host and write one manifest per browser.
+#[cfg(not(windows))]
+fn install_unix(
+    chosen: &[Browser],
+    custom_path: Option<&String>,
+    tor_path: Option<&PathBuf>,
+    extension_id: &str,
+    is_root: bool,
+) -> Result<()> {
+    for browser in chosen {
         let path = if browser == &Browser::Tor {
-            tor_path.clone()
+            tor_path.cloned()
         } else if browser == &Browser::Custom {
-            custom_path.clone().map(PathBuf::from)
+            custom_path.cloned().map(PathBuf::from)
         } else {
             resolve_path(browser.key(), is_root)
         };
@@ -328,7 +409,7 @@ pub(crate) fn install(developer: bool) -> Result<()> {
                 do_install(
                     path.to_string_lossy().as_ref(),
                     browser.family(),
-                    &extension_id,
+                    extension_id,
                 )?;
             }
             None => {
@@ -339,8 +420,104 @@ pub(crate) fn install(developer: bool) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
 
-    info!("Done.");
+/// Unix Tor resolution: root uses the system path Tor reads; a user install
+/// discovers the bundle or prompts for it.
+#[cfg(not(windows))]
+fn resolve_tor_path(chosen: &[Browser], is_root: bool) -> Result<Option<PathBuf>> {
+    if !chosen.contains(&Browser::Tor) {
+        return Ok(None);
+    }
+    if let Some(path) = resolve_path("tor", is_root) {
+        return Ok(Some(path));
+    }
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("cannot determine home directory"))?;
+    let default = discover_tor_bundle(&home)
+        .unwrap_or_else(|| home.join("tor-browser"))
+        .display()
+        .to_string();
+    let bundle = Text::new("Tor Browser installation directory (contains Browser/)")
+        .with_default(&default)
+        .prompt()
+        .map_err(|e| anyhow!("Tor Browser path cancelled: {e}"))?;
+    Ok(Some(tor_native_dir(Path::new(&bundle)).ok_or_else(
+        || anyhow!("not a Tor Browser bundle: {bundle} (expected Browser/TorBrowser/Data/Browser)"),
+    )?))
+}
+
+/// Windows install: copy the host once under `%LOCALAPPDATA%`, then register each
+/// selected browser's manifest in its `HKCU` key.
+#[cfg(windows)]
+fn install_windows(
+    chosen: &[Browser],
+    extension_id: &str,
+    custom_root: Option<&str>,
+) -> Result<()> {
+    let dir = dirs::data_local_dir()
+        .ok_or_else(|| anyhow!("cannot resolve %LOCALAPPDATA%"))?
+        .join("kdeconnect-browser-reborn");
+    let host = manifest::install_host_binary(&dir)?;
+
+    let mut chromium: Option<PathBuf> = None;
+    let mut gecko: Option<PathBuf> = None;
+    for browser in chosen {
+        let family = browser.family();
+        let manifest = match family {
+            ManifestFamily::Chromium => manifest_for(
+                &mut chromium,
+                dir.join("chromium"),
+                family,
+                &host,
+                extension_id,
+            )?,
+            ManifestFamily::Gecko => {
+                manifest_for(&mut gecko, dir.join("gecko"), family, &host, extension_id)?
+            }
+        };
+        let root = match browser.registry_root() {
+            Some(root) => root,
+            None => custom_root.ok_or_else(|| anyhow!("custom browser needs a registry root"))?,
+        };
+        register_windows_host(root, manifest::HOST_NAME, &manifest)?;
+    }
+    Ok(())
+}
+
+/// Write each family's manifest once, then reuse it for every browser of that family.
+#[cfg(windows)]
+fn manifest_for(
+    cache: &mut Option<PathBuf>,
+    dir: PathBuf,
+    family: ManifestFamily,
+    host: &Path,
+    extension_id: &str,
+) -> Result<PathBuf> {
+    if let Some(path) = cache {
+        return Ok(path.clone());
+    }
+    let path = manifest::write_manifest(&dir, family, host, extension_id)?;
+    *cache = Some(path.clone());
+    Ok(path)
+}
+
+/// Register the manifest in the browser's `HKCU` key, whose default value is the
+/// manifest path.
+#[cfg(windows)]
+pub(crate) fn register_windows_host(root: &str, host_name: &str, manifest: &Path) -> Result<()> {
+    use anyhow::Context;
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let subkey = format!("{root}\\{host_name}");
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(&subkey)
+        .with_context(|| format!("create HKCU\\{subkey}"))?;
+    let value = manifest.to_string_lossy().into_owned();
+    key.set_value("", &value)
+        .with_context(|| format!("write default value of HKCU\\{subkey}"))?;
+    info!(key = %subkey, path = %value, "registered native host");
     Ok(())
 }
 
@@ -383,6 +560,53 @@ mod tests {
             tor_native_dir(bundle).unwrap(),
             bundle.join("Browser/TorBrowser/Data/Browser/.mozilla/native-messaging-hosts")
         );
+    }
+
+    #[test]
+    fn registry_roots_follow_browser_vendors() {
+        assert_eq!(
+            Browser::Chrome.registry_root(),
+            Some(r"Software\Google\Chrome\NativeMessagingHosts")
+        );
+        assert_eq!(
+            Browser::Chromium.registry_root(),
+            Some(r"Software\Chromium\NativeMessagingHosts")
+        );
+        assert_eq!(
+            Browser::Edge.registry_root(),
+            Some(r"Software\Microsoft\Edge\NativeMessagingHosts")
+        );
+        assert_eq!(
+            Browser::Brave.registry_root(),
+            Some(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts")
+        );
+        assert_eq!(
+            Browser::Vivaldi.registry_root(),
+            Some(r"Software\Vivaldi\NativeMessagingHosts")
+        );
+        assert_eq!(
+            Browser::Firefox.registry_root(),
+            Some(r"Software\Mozilla\NativeMessagingHosts")
+        );
+        // Tor Browser registers under the Firefox key on Windows.
+        assert_eq!(
+            Browser::Tor.registry_root(),
+            Browser::Firefox.registry_root()
+        );
+        // Custom asks the user for a root instead of having one.
+        assert_eq!(Browser::Custom.registry_root(), None);
+    }
+
+    #[test]
+    fn registry_roots_are_well_formed() {
+        for browser in Browser::all() {
+            let Some(root) = browser.registry_root() else {
+                continue;
+            };
+            assert!(root.starts_with("Software\\"), "{root}");
+            assert!(root.ends_with("\\NativeMessagingHosts"), "{root}");
+            assert!(!root.split('\\').any(str::is_empty), "{root}");
+        }
     }
 
     #[cfg(target_os = "linux")]

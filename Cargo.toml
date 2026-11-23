@@ -39,6 +39,10 @@ ts-rs = { version = "12", default-features = false, features = ["serde-compat", 
 url = "2.5.9"
 zbus = "6"
 
+# Windows: install via the HKCU registry (no directory to write).
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+
 [lints]
 # This one may vary depending on the project.
 rust.unsafe_code = "forbid"
