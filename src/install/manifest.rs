@@ -17,19 +17,27 @@ pub(crate) fn is_valid_chrome_extension_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|byte| (b'a'..=b'p').contains(&byte))
 }
 
-/// Render the native messaging manifest for the given browser.
-fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
-    let (allowed_origins, allowed_extensions) = if browser == "firefox" {
-        (None, Some(vec![FIREFOX_EXTENSION_ID.to_owned()]))
-    } else {
-        let extension_id = ctx
-            .extension_id
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("Chrome native host requires an extension ID"))?;
-        (
-            Some(vec![format!("chrome-extension://{extension_id}/")]),
-            None,
-        )
+/// Which of the two manifest shapes the host installs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ManifestFamily {
+    Chromium,
+    Gecko,
+}
+
+/// Render the native messaging manifest for the given family.
+fn render_manifest(family: ManifestFamily, ctx: &ManifestContext) -> Result<String> {
+    let (allowed_origins, allowed_extensions) = match family {
+        ManifestFamily::Gecko => (None, Some(vec![FIREFOX_EXTENSION_ID.to_owned()])),
+        ManifestFamily::Chromium => {
+            let extension_id = ctx
+                .extension_id
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("Chrome native host requires an extension ID"))?;
+            (
+                Some(vec![format!("chrome-extension://{extension_id}/")]),
+                None,
+            )
+        }
     };
 
     let manifest = NativeManifest {
@@ -67,8 +75,12 @@ pub(crate) fn select_daemon_binary() -> Result<PathBuf> {
     Ok(pick_daemon_binary(&exe))
 }
 
-/// Copy the selected binary and write the manifest for one browser.
-pub(crate) fn do_install(target_dir: &str, browser: &str, extension_id: &str) -> Result<()> {
+/// Copy the selected binary and write the manifest for one browser family.
+pub(crate) fn do_install(
+    target_dir: &str,
+    family: ManifestFamily,
+    extension_id: &str,
+) -> Result<()> {
     let dir = PathBuf::from(target_dir);
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let dir = std::fs::canonicalize(&dir)
@@ -91,12 +103,13 @@ pub(crate) fn do_install(target_dir: &str, browser: &str, extension_id: &str) ->
 
     // Render and write manifest
     let manifest_path = dir.join(format!("{HOST_NAME}.json"));
-    let ctx = if browser == "firefox" {
-        ManifestContext::firefox(daemon_path.to_string_lossy().as_ref())
-    } else {
-        ManifestContext::chrome(daemon_path.to_string_lossy().as_ref(), extension_id)
+    let ctx = match family {
+        ManifestFamily::Gecko => ManifestContext::firefox(daemon_path.to_string_lossy().as_ref()),
+        ManifestFamily::Chromium => {
+            ManifestContext::chrome(daemon_path.to_string_lossy().as_ref(), extension_id)
+        }
     };
-    let content = render_manifest(browser, &ctx)?;
+    let content = render_manifest(family, &ctx)?;
 
     // Check before overwriting
     if manifest_path.exists() {
@@ -106,7 +119,7 @@ pub(crate) fn do_install(target_dir: &str, browser: &str, extension_id: &str) ->
     std::fs::write(&manifest_path, &content)
         .with_context(|| format!("write {}", manifest_path.display()))?;
 
-    info!(binary = %daemon_path.display(), manifest = %manifest_path.display(), "installed for {}", browser);
+    info!(binary = %daemon_path.display(), manifest = %manifest_path.display(), "installed for {family:?}");
     Ok(())
 }
 
@@ -153,8 +166,10 @@ mod tests {
     fn chrome_manifest_escapes_paths() {
         let path = r#"/home/user/a "quoted" folder/host\binary"#;
         let ctx = ManifestContext::chrome(path, DEFAULT_EXTENSION_ID);
-        let json: serde_json::Value =
-            serde_json::from_str(&render_manifest("chrome", &ctx).expect("manifest")).unwrap();
+        let json: serde_json::Value = serde_json::from_str(
+            &render_manifest(ManifestFamily::Chromium, &ctx).expect("manifest"),
+        )
+        .unwrap();
         assert_eq!(json["path"], path);
         assert_eq!(
             json["allowed_origins"][0],
@@ -166,7 +181,8 @@ mod tests {
     fn firefox_manifest_uses_allowed_extensions() {
         let ctx = ManifestContext::firefox("/usr/lib/native-host");
         let json: serde_json::Value =
-            serde_json::from_str(&render_manifest("firefox", &ctx).expect("manifest")).unwrap();
+            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
+                .unwrap();
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
         assert!(json.get("allowed_origins").is_none());
     }
@@ -175,9 +191,20 @@ mod tests {
     fn firefox_manifest_name_is_the_new_host_name() {
         let ctx = ManifestContext::firefox("/usr/lib/native-host");
         let json: serde_json::Value =
-            serde_json::from_str(&render_manifest("firefox", &ctx).expect("manifest")).unwrap();
+            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
+                .unwrap();
         assert_eq!(json["name"], HOST_NAME);
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
+    }
+
+    #[test]
+    fn gecko_manifest_is_shared_by_firefox_and_tor() {
+        let ctx = ManifestContext::firefox("/usr/lib/native-host");
+        let json: serde_json::Value =
+            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
+                .unwrap();
+        assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
+        assert!(json.get("allowed_origins").is_none());
     }
 
     #[test]
