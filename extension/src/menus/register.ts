@@ -32,7 +32,7 @@ export function rebuildContextMenus(): void {
   menuRebuildInProgress = true;
   const rebuild = (): void => {
     menuRebuildQueued = false;
-    void browser.contextMenus.removeAll(() => {
+    browser.contextMenus.removeAll(() => {
       // Coalesce updates that arrived while removeAll was pending. Running
       // overlapping removeAll callbacks can otherwise leave stale/empty menus.
       if (menuRebuildQueued) {
