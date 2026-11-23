@@ -3,6 +3,5 @@
 
 # Extension build
 /extension/node_modules/
-/extension/dist/
 /extension/.output/
 /extension/.wxt/
