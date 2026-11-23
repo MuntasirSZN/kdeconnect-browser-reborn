@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { Device } from "./generated/types";
 import type { ExtensionOptions } from "./shared-types";
 import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus";

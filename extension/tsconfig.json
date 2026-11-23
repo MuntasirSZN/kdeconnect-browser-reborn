@@ -5,7 +5,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["chrome", "bun"],
+    "types": ["chrome", "vite/client"],
     "noUncheckedIndexedAccess": false
   }
 }

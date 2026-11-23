@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { typeIcon } from "./icons";
 
 test("maps KDE Connect types to Lucide names", () => {

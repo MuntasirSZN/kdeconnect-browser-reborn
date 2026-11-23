@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { MAX_IMAGE_BYTES, imageBytesAllowed, shareRequest, wantsImageData } from "./share";
 
 describe("shareRequest", () => {
