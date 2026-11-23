@@ -1,16 +1,16 @@
 /**
- * Background service worker state: device cache, options, badges, broadcasts.
+ * Background service worker state: device cache and options.
+ *
+ * Badge rendering lives in `browser-action.ts` and is re-exported here so
+ * existing callers keep working.
  */
 
 import type { Device } from "../generated/types";
 import type { ExtensionOptions } from "../shared-types";
 
-interface BadgeState {
-  text: string;
-  color: [number, number, number, number];
-}
+import { browser } from "wxt/browser";
 
-const badges: Record<string, BadgeState> = {};
+export { clearBadge, setBadge } from "../browser-action";
 
 let knownDevices: Record<string, Device> = {};
 let options: ExtensionOptions = {
@@ -59,33 +59,11 @@ export function setOption<K extends keyof ExtensionOptions>(
   options = { ...options, [key]: value };
 }
 
-/** Set a badge (used for connect/disconnect/update markers). */
-export function setBadge(source: string, state: BadgeState): void {
-  badges[source] = state;
-  applyBadge();
-}
-
-export function clearBadge(source: string): void {
-  delete badges[source];
-  applyBadge();
-}
-
-function applyBadge(): void {
-  const keys = Object.keys(badges);
-  if (keys.length === 0) {
-    void chrome.action.setBadgeText({ text: "" });
-    return;
-  }
-  const last = badges[keys[keys.length - 1]];
-  void chrome.action.setBadgeText({ text: last.text });
-  void chrome.action.setBadgeBackgroundColor({ color: last.color });
-}
-
 /**
  * Broadcast a message to all extension views (popup, options).
  */
 export function broadcast(msg: unknown): void {
-  chrome.runtime.sendMessage(msg).catch(() => {
+  browser.runtime.sendMessage(msg).catch(() => {
     // Popup/options may be closed — ignore send errors.
   });
 }
