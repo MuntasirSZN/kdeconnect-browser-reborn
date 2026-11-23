@@ -1,13 +1,15 @@
-import type { Device } from "./generated/types";
-import type { ExtensionOptions } from "./shared-types";
-import { deviceMenuIcon } from "./icons";
+import type { Browser } from "wxt/browser";
+
+import type { Device } from "../generated/types";
+import type { ExtensionOptions } from "../shared-types";
+import { deviceMenuIcon } from "../icons";
 
 export type MenuAction = "open-link" | "open-page" | "call" | "open-tab";
 
 export interface MenuEntry {
   id: string;
   title: string;
-  contexts: [`${chrome.contextMenus.ContextType}`, ...`${chrome.contextMenus.ContextType}`[]];
+  contexts: [`${Browser.contextMenus.ContextType}`, ...`${Browser.contextMenus.ContextType}`[]];
   targetUrlPatterns?: string[];
   documentUrlPatterns?: string[];
   icons?: { 16: string };

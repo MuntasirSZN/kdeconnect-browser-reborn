@@ -3,8 +3,8 @@
  */
 
 import { getDevices, getOptions } from "./state";
-import { buildMenuSpec } from "../menus";
-import type { MenuStrings } from "../menus";
+import { buildMenuSpec } from "../menus/spec";
+import type { MenuStrings } from "../menus/spec";
 
 const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
 

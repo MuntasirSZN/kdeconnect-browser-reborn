@@ -14,7 +14,7 @@ import {
   updateDevice,
 } from "./state";
 import { rebuildContextMenus } from "./menus";
-import { parseMenuId, resolveMenuUrl } from "../menus";
+import { parseMenuId, resolveMenuUrl } from "../menus/spec";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "../reconnect";
 import type { RetryState } from "../reconnect";
 import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "../share";

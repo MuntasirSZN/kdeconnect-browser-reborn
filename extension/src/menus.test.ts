@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Device } from "./generated/types";
 import type { ExtensionOptions } from "./shared-types";
-import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus";
+import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus/spec";
 import { deviceMenuIcon } from "./icons";
 
 const strings = {
