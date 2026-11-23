@@ -202,9 +202,7 @@ export async function handleMenuClick(
 }
 
 /** Fetch the image bytes of an image-context click, or null if unavailable. */
-async function shareImageData(
-  info: Browser.contextMenus.OnClickData,
-): Promise<string | null> {
+async function shareImageData(info: Browser.contextMenus.OnClickData): Promise<string | null> {
   const url = info.srcUrl ?? info.linkUrl;
   if (!url) return null;
   try {

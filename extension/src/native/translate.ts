@@ -27,9 +27,10 @@ export function translateHostMessage(msg: Message, protocolVersion: string): Hos
 
     case "typeShareResult": {
       const data = msg.data as { ok?: boolean; error?: string } | undefined;
-      const effect: HostEffect = data?.ok === true
-        ? { kind: "shareResult", ok: true }
-        : { kind: "shareResult", ok: false, error: data?.error ?? "share failed" };
+      const effect: HostEffect =
+        data?.ok === true
+          ? { kind: "shareResult", ok: true }
+          : { kind: "shareResult", ok: false, error: data?.error ?? "share failed" };
       return [effect];
     }
 

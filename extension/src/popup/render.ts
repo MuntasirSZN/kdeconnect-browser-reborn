@@ -70,9 +70,7 @@ export function writeDevices(
   const container = document.getElementById("devices");
   if (!container) return;
 
-  renderDeviceList(container, devices, (device) =>
-    renderDevice(device, () => onShare(device)),
-  );
+  renderDeviceList(container, devices, (device) => renderDevice(device, () => onShare(device)));
   if (container.children.length === 0) {
     renderEmpty("No devices found…");
   } else {

@@ -12,8 +12,7 @@ function readOptions(): ExtensionOptions {
   return {
     enabled: (document.getElementById("enabled") as HTMLInputElement)?.checked ?? true,
     defaultOnly: (document.getElementById("defaultOnly") as HTMLInputElement)?.checked ?? false,
-    defaultDeviceId:
-      (document.getElementById("defaultDevice") as HTMLSelectElement)?.value || null,
+    defaultDeviceId: (document.getElementById("defaultDevice") as HTMLSelectElement)?.value || null,
     disableContextMenu:
       (document.getElementById("disableContextMenu") as HTMLInputElement)?.checked ?? false,
   };
@@ -34,7 +33,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const enabled = document.getElementById("enabled") as HTMLInputElement | null;
   const defaultOnly = document.getElementById("defaultOnly") as HTMLInputElement | null;
-  const disableContextMenu = document.getElementById("disableContextMenu") as HTMLInputElement | null;
+  const disableContextMenu = document.getElementById(
+    "disableContextMenu",
+  ) as HTMLInputElement | null;
   const defaultDevice = document.getElementById("defaultDevice") as HTMLSelectElement | null;
 
   if (enabled) enabled.checked = opts.enabled;

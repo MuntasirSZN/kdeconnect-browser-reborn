@@ -7,13 +7,13 @@ pub(crate) mod manifest;
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use inquire::{MultiSelect, Text};
 use tracing::info;
 
 #[cfg(not(windows))]
 use manifest::do_install;
-use manifest::{is_valid_chrome_extension_id, ManifestFamily, DEFAULT_EXTENSION_ID};
+use manifest::{DEFAULT_EXTENSION_ID, ManifestFamily, is_valid_chrome_extension_id};
 
 /// Browser kind and its display label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -507,8 +507,8 @@ fn manifest_for(
 #[cfg(windows)]
 pub(crate) fn register_windows_host(root: &str, host_name: &str, manifest: &Path) -> Result<()> {
     use anyhow::Context;
-    use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
 
     let subkey = format!("{root}\\{host_name}");
     let (key, _) = RegKey::predef(HKEY_CURRENT_USER)

@@ -48,9 +48,10 @@ assert(
   "_execute_browser_action" in (firefox["commands"] as object),
   "firefox: _execute_browser_action command is set",
 );
-const gecko = (firefox["browser_specific_settings"] as Record<string, unknown>)[
-  "gecko"
-] as Record<string, unknown>;
+const gecko = (firefox["browser_specific_settings"] as Record<string, unknown>)["gecko"] as Record<
+  string,
+  unknown
+>;
 assert(gecko["id"] === GECK_ID, `firefox: gecko id is ${GECK_ID}`);
 assert(gecko["strict_min_version"] === "142.0", "firefox: strict_min_version is 142.0");
 
