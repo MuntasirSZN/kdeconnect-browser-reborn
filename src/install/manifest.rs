@@ -6,10 +6,11 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 use tracing::{info, warn};
 
-pub(crate) const APP_NAME: &str = "com.0xc0dedbad.kdeconnect_chrome";
+pub(crate) const HOST_NAME: &str = "io.github.muntasirszn.kdeconnect_browser_reborn";
+pub(crate) const BINARY_NAME: &str = "kdeconnect-browser-reborn";
+/// Chrome Web Store id; the extension is not published yet, so --dev falls back to it.
 pub(crate) const DEFAULT_EXTENSION_ID: &str = "ofmplbbfigookafjahpeepbggpofdhbo";
-
-pub(crate) const FIREFOX_EXTENSION_ID: &str = "kde-connect@0xc0dedbad.com";
+pub(crate) const FIREFOX_EXTENSION_ID: &str = "kdeconnect-browser-reborn@muntasirszn.github.io";
 
 /// Chrome extension IDs contain exactly 32 lowercase characters in a-p.
 pub(crate) fn is_valid_chrome_extension_id(id: &str) -> bool {
@@ -32,7 +33,7 @@ fn render_manifest(browser: &str, ctx: &ManifestContext) -> Result<String> {
     };
 
     let manifest = NativeManifest {
-        name: APP_NAME.to_owned(),
+        name: HOST_NAME.to_owned(),
         description: "KDE Connect".to_owned(),
         path: ctx.path.clone(),
         host_type: "stdio",
@@ -74,7 +75,7 @@ pub(crate) fn do_install(target_dir: &str, browser: &str, extension_id: &str) ->
         .with_context(|| format!("resolve installation directory {}", dir.display()))?;
 
     // Destination path must be absolute in the native messaging manifest.
-    let daemon_path = dir.join(APP_NAME);
+    let daemon_path = dir.join(BINARY_NAME);
 
     // Copy self
     let exe = select_daemon_binary().context("select host binary")?;
@@ -89,7 +90,7 @@ pub(crate) fn do_install(target_dir: &str, browser: &str, extension_id: &str) ->
     }
 
     // Render and write manifest
-    let manifest_path = dir.join(format!("{APP_NAME}.json"));
+    let manifest_path = dir.join(format!("{HOST_NAME}.json"));
     let ctx = if browser == "firefox" {
         ManifestContext::firefox(daemon_path.to_string_lossy().as_ref())
     } else {
@@ -168,6 +169,15 @@ mod tests {
             serde_json::from_str(&render_manifest("firefox", &ctx).expect("manifest")).unwrap();
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
         assert!(json.get("allowed_origins").is_none());
+    }
+
+    #[test]
+    fn firefox_manifest_name_is_the_new_host_name() {
+        let ctx = ManifestContext::firefox("/usr/lib/native-host");
+        let json: serde_json::Value =
+            serde_json::from_str(&render_manifest("firefox", &ctx).expect("manifest")).unwrap();
+        assert_eq!(json["name"], HOST_NAME);
+        assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
     }
 
     #[test]

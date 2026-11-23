@@ -11,7 +11,7 @@ use crate::dbus::{self, SharedDevice};
 use crate::image::write_image_to_temp;
 use crate::types::{Message, MessageType, ShareRequest};
 
-pub(crate) const PROTOCOL_VERSION: &str = "0.1.4";
+pub(crate) const PROTOCOL_VERSION: &str = "0.1.0";
 
 pub(crate) async fn handle_message(
     conn: &Connection,

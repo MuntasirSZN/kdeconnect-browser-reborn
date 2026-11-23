@@ -2,7 +2,7 @@
 
 use clap::Parser;
 
-pub(crate) const CLI_VERSION: &str = "0.1.7";
+pub(crate) const CLI_VERSION: &str = "0.1.0";
 
 /// KDE Connect Browser Reborn — Native Messaging Host.
 #[expect(
@@ -51,8 +51,8 @@ mod tests {
     fn browser_arguments_are_accepted() {
         let cli = Cli::try_parse_from([
             "kdeconnect-browser-reborn",
-            "/home/user/.mozilla/native-messaging-hosts/com.0xc0dedbad.kdeconnect_chrome.json",
-            "kde-connect@0xc0dedbad.com",
+            "io.github.muntasirszn.kdeconnect_browser_reborn.json",
+            "kdeconnect-browser-reborn@muntasirszn.github.io",
         ])
         .expect("Firefox argv");
         assert!(!cli.install && !cli.dev && !cli.version && !cli.devices);

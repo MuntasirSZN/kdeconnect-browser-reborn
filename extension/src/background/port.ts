@@ -3,6 +3,7 @@
  */
 
 import type { Device, Message } from "../generated/types";
+import { HOST_NAME, PROTOCOL_VERSION } from "../generated/protocol";
 import {
   broadcast,
   clearBadge,
@@ -17,9 +18,6 @@ import { parseMenuId, resolveMenuUrl } from "../menus";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "../reconnect";
 import type { RetryState } from "../reconnect";
 import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "../share";
-
-const HOSTNAME = "com.0xc0dedbad.kdeconnect_chrome";
-const PROTOCOL_VERSION = "0.1.4";
 
 let port: chrome.runtime.Port | null = null;
 let retry: RetryState = createRetryState();
@@ -45,11 +43,11 @@ export function connect(isUserAction = false): void {
 
   // Debug: log extension ID and hostname for troubleshooting
   const extId = chrome.runtime.id;
-  console.info("Connecting to native host", HOSTNAME, "from extension", extId);
+  console.info("Connecting to native host", HOST_NAME, "from extension", extId);
 
   let thisPort: chrome.runtime.Port;
   try {
-    thisPort = chrome.runtime.connectNative(HOSTNAME);
+    thisPort = chrome.runtime.connectNative(HOST_NAME);
   } catch (e) {
     console.warn("connectNative threw:", e instanceof Error ? e.message : String(e));
     setBadge("connected", { text: "!", color: [255, 0, 0, 220] });

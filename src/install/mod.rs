@@ -3,15 +3,15 @@
 //! Interactively selects browsers and installs the daemon binary plus a
 //! native-messaging manifest for each.
 
-mod manifest;
+pub(crate) mod manifest;
 
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use inquire::{MultiSelect, Text};
 use tracing::info;
 
-use manifest::{DEFAULT_EXTENSION_ID, do_install, is_valid_chrome_extension_id};
+use manifest::{do_install, is_valid_chrome_extension_id, DEFAULT_EXTENSION_ID};
 
 /// Browser kind and its display label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
