@@ -3,16 +3,17 @@
  */
 
 import { Check, createIcons } from "lucide";
-import { knownDevices, renderDeviceList } from "../device-list";
+import type { Device } from "../generated/types";
+import { renderDeviceList } from "../device-list";
 import { getDefaultDeviceId, clearSaveStatusTimer, setSaveStatusTimer } from "./state";
 
 /** Fill the `defaultDevice` select with one option per device. */
-export function writeDevices(): void {
+export function writeDevices(devices: Record<string, Device>): void {
   const select = document.getElementById("defaultDevice") as HTMLSelectElement | null;
   if (!select) return;
 
   const selectedDeviceId = select.value || getDefaultDeviceId();
-  renderDeviceList(select, knownDevices, (device) => {
+  renderDeviceList(select, devices, (device) => {
     const opt = document.createElement("option");
     opt.value = device.id;
     opt.disabled = !(device.isReachable && device.isTrusted);

@@ -2,14 +2,10 @@
  * Popup view — status-line rendering.
  */
 
-import type { Message } from "../generated/types";
 import type { StatusData } from "../shared-types";
 
 /** Add or update the status line for `data.key`. */
-export function addStatus(msg: Message): void {
-  const data = msg.data as StatusData | undefined;
-  if (!data?.key) return;
-
+export function addStatus(data: StatusData): void {
   const container = document.getElementById("status");
   if (!container) return;
 
@@ -47,10 +43,6 @@ export function addStatus(msg: Message): void {
 }
 
 /** Remove the status line for `data.key`. */
-export function removeStatus(msg: Message): void {
-  const data = msg.data as StatusData | undefined;
-  const key = data?.key;
-  if (!key) return;
-  const el = document.getElementById(`status-${key}`);
-  el?.remove();
+export function removeStatus(key: string): void {
+  document.getElementById(`status-${key}`)?.remove();
 }

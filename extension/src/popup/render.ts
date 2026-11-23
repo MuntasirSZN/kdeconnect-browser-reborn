@@ -5,7 +5,7 @@
 import { createIcons } from "lucide";
 import type { Device } from "../generated/types";
 import { DEVICE_ICONS, typeIcon } from "../icons";
-import { knownDevices, renderDeviceList } from "../device-list";
+import { renderDeviceList } from "../device-list";
 
 /** Render the empty-devices placeholder. */
 export function renderEmpty(text: string): void {
@@ -63,11 +63,14 @@ export function renderDevice(device: Device, onShare: () => void): HTMLElement |
 }
 
 /** Replace the device list with one button per device. */
-export function writeDevices(onShare: (device: Device) => void): void {
+export function writeDevices(
+  devices: Record<string, Device>,
+  onShare: (device: Device) => void,
+): void {
   const container = document.getElementById("devices");
   if (!container) return;
 
-  renderDeviceList(container, knownDevices, (device) =>
+  renderDeviceList(container, devices, (device) =>
     renderDevice(device, () => onShare(device)),
   );
   if (container.children.length === 0) {

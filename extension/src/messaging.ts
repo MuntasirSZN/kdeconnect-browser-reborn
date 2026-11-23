@@ -8,14 +8,14 @@ import type { Device, ShareRequest } from "./generated/types";
 import type { StatusData } from "./shared-types";
 
 /** Background → view commands and view → background events. */
-interface Protocol {
+type Protocol = {
   connect(): void;
   getDevices(): Record<string, Device>;
   share(data: ShareRequest): void;
   devicesChanged(devices: Record<string, Device>): void;
   status(data: StatusData): void;
   clearStatus(key: string): void;
-}
+};
 
 export const { sendMessage, onMessage } = defineExtensionMessaging<Protocol>();
 
