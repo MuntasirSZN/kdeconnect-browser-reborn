@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>KDE Connect Browser Reborn</title>
+    <link rel="stylesheet" href="../../options/style.css" />
+    <link rel="stylesheet" href="../../theme.css" />
+  </head>
+  <body>
+    <main id="container">
+      <h1>KDE Connect Browser Reborn</h1>
+      <div id="options">
+        <div class="item">
+          <label>
+            <input id="enabled" type="checkbox" />
+            Enable KDE Connect integration
+          </label>
+        </div>
+        <div class="item">
+          <label>
+            <input id="defaultOnly" type="checkbox" />
+            Send directly to default device, disable menus
+          </label>
+        </div>
+        <div id="defaultDeviceContainer" class="item hidden">
+          <label for="defaultDevice">Default device:</label>
+          <select id="defaultDevice" class="select"></select>
+        </div>
+        <div class="item">
+          <label>
+            <input id="disableContextMenu" type="checkbox" />
+            Disable context menu
+          </label>
+        </div>
+      </div>
+      <div id="controls">
+        <span id="status"></span>
+        <button id="save" type="button">Save</button>
+      </div>
+    </main>
+    <script src="./main.ts" type="module"></script>
+  </body>
+</html>
