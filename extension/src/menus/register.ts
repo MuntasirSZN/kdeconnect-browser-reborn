@@ -9,20 +9,16 @@ import { getOptions } from "../settings";
 import { buildMenuSpec } from "./spec";
 import type { MenuStrings } from "./spec";
 
-const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+import { i18n } from "#i18n";
+
+const IS_FIREFOX = import.meta.env.BROWSER === "firefox";
 
 let menuRebuildInProgress = false;
 let menuRebuildQueued = false;
 
-function message(key: string, subs: string[] = [], fallback = ""): string {
-  return (
-    browser.i18n.getMessage(key as Parameters<typeof browser.i18n.getMessage>[0], subs) || fallback
-  );
-}
-
 const menuStrings: MenuStrings = {
-  open: (name) => message("kdeconnect_open_device", [name], `Open on '${name}'`),
-  call: (name) => message("kdeconnect_call_device", [name], `Call on '${name}'`),
+  open: (name) => i18n.t("kdeconnect_open_device", [name]),
+  call: (name) => i18n.t("kdeconnect_call_device", [name]),
 };
 
 export function rebuildContextMenus(): void {
