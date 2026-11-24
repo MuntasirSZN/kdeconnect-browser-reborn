@@ -9,26 +9,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { browser } from "wxt/browser";
 
-import { DEFAULT_OPTIONS } from "../storage";
-import { PROTOCOL_VERSION } from "../generated/protocol";
-import type { Device } from "../generated/types";
+import { DEFAULT_OPTIONS } from "../../src/storage";
+import { PROTOCOL_VERSION } from "../../src/generated/protocol";
+import type { Device } from "../../src/generated/types";
 
-vi.mock("../menus/register", () => ({ rebuildContextMenus: vi.fn() }));
-vi.mock("../messaging", () => ({
+vi.mock("../../src/menus/register", () => ({ rebuildContextMenus: vi.fn() }));
+vi.mock("../../src/messaging", () => ({
   emitDevices: vi.fn(),
   emitStatus: vi.fn(),
   emitClearStatus: vi.fn(),
 }));
-vi.mock("../settings", () => ({ getOptions: vi.fn() }));
+vi.mock("../../src/settings", () => ({ getOptions: vi.fn() }));
 
 // All modules are imported dynamically after `vi.resetModules()` so each test
 // gets a fresh port plus the device-cache and messaging instances the port
 // actually uses.
-let port: typeof import("./port");
-let dc: typeof import("../device-cache");
-let messaging: typeof import("../messaging");
-let settings: typeof import("../settings");
-let fake: import("./testing/fake-port").FakePort;
+let port: typeof import("../../src/native/port");
+let dc: typeof import("../../src/device-cache");
+let messaging: typeof import("../../src/messaging");
+let settings: typeof import("../../src/settings");
+let fake: import("../../src/native/testing/fake-port").FakePort;
 
 const phone = { id: "dev1", name: "Pixel", type: "phone" } as Device;
 
@@ -47,13 +47,13 @@ beforeEach(async () => {
   // `connect()` writes a verbose diagnostic to console.debug.
   vi.spyOn(console, "debug").mockImplementation(() => {});
 
-  fake = new (await import("./testing/fake-port")).FakePort();
-  settings = await import("../settings");
-  messaging = await import("../messaging");
-  dc = await import("../device-cache");
+  fake = new (await import("../../src/native/testing/fake-port")).FakePort();
+  settings = await import("../../src/settings");
+  messaging = await import("../../src/messaging");
+  dc = await import("../../src/device-cache");
   (browser.runtime as { connectNative: unknown }).connectNative = vi.fn(() => fake);
   vi.mocked(settings.getOptions).mockReturnValue(options(true));
-  port = await import("./port");
+  port = await import("../../src/native/port");
 });
 
 afterEach(() => {

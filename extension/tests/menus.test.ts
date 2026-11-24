@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { Device } from "./generated/types";
-import type { ExtensionOptions } from "./shared-types";
-import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "./menus/spec";
-import { deviceMenuIcon } from "./icons";
+import type { Device } from "../src/generated/types";
+import type { ExtensionOptions } from "../src/shared-types";
+import { buildMenuSpec, parseMenuId, resolveMenuUrl } from "../src/menus/spec";
+import { deviceMenuIcon } from "../src/icons";
 
 const strings = {
   open: (name: string) => `Open on '${name}'`,

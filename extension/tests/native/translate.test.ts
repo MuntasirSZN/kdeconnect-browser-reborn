@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Device, Message } from "../generated/types";
-import { translateHostMessage } from "./translate";
+import type { Device, Message } from "../../src/generated/types";
+import { translateHostMessage } from "../../src/native/translate";
 
 function msg(type: Message["type"], data?: unknown): Message {
   return { type, data };

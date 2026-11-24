@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browser } from "wxt/browser";
-import { getCurrentTabUrl } from "./tabs";
+import { getCurrentTabUrl } from "../src/tabs";
 
 const queryMock = vi.spyOn(browser.tabs, "query");
 
