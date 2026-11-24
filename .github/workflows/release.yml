@@ -124,9 +124,6 @@ jobs:
       - name: Create release
         run: >
           gh release create ${GITHUB_REF_NAME}
+          $(find . -type f \( -path '*/kdeconnect-browser-reborn*' -o -path '*/extension-zips/*.zip' \) | sort)
           --title "KDE Connect Browser Reborn ${GITHUB_REF_NAME}"
           --notes-file release.md
-      - name: Upload assets
-        run: >
-          gh release upload ${GITHUB_REF_NAME}
-          $(find . -type f \( -path '*/kdeconnect-browser-reborn*' -o -path '*/extension-zips/*.zip' \) | sort)
