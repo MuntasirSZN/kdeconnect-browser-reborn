@@ -119,6 +119,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn discover_devices_returns_an_empty_list_when_no_devices_are_visible() {
+        use crate::dbus::MockDbus;
+
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Ok(vec![]));
+
+        let devices = discover_devices(&mock).await.expect("discover_devices");
+        assert!(devices.is_empty());
+    }
+
+    #[tokio::test]
+    async fn discover_devices_propagates_enumeration_failures() {
+        use crate::dbus::MockDbus;
+
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Err(anyhow::anyhow!("no such object")));
+
+        assert!(discover_devices(&mock).await.is_err());
+    }
+
+    #[tokio::test]
     async fn discover_devices_fetches_ids_and_properties() {
         use crate::dbus::MockDbus;
         use zbus::OwnedVariant;

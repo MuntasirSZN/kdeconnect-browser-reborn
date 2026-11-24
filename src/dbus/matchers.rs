@@ -140,6 +140,18 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn add_device_match_rules_stops_and_fails_when_a_rule_fails() {
+        use crate::dbus::MockDbus;
+
+        let mut mock = MockDbus::new();
+        mock.expect_add_match()
+            .times(1)
+            .returning(|_rule| Err(anyhow::anyhow!("bus is down")));
+
+        assert!(add_device_match_rules(&mock, DEVICE_PATH).await.is_err());
+    }
+
     #[test]
     fn daemon_rule_matches_every_daemon_signal() {
         assert_eq!(

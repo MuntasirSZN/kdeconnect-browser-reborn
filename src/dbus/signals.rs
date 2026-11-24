@@ -42,8 +42,8 @@ fn signal_action(iface: Option<&str>, member: Option<&str>) -> SignalAction {
 /// Re-enumerate devices after a daemon or pairing signal and publish the new
 /// snapshot.  On failure the previous device list is kept and the extension is
 /// told why.
-async fn resync_devices(
-    conn: &Connection,
+async fn resync_devices<D: super::Dbus + ?Sized>(
+    conn: &D,
     devices: &std::sync::Arc<Mutex<Vec<SharedDevice>>>,
     output_tx: &tokio::sync::mpsc::UnboundedSender<Message>,
 ) {
@@ -192,6 +192,57 @@ async fn handle_signal(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dbus::MockDbus;
+    use zbus::OwnedVariant;
+    use zbus::wire::Str;
+
+    #[tokio::test]
+    async fn resync_replaces_the_device_list_and_publishes_a_snapshot() {
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Ok(vec!["dev-a".to_owned()]));
+        mock.expect_fetch_all_props().times(1).returning(|_: &str| {
+            Ok(std::collections::HashMap::from([(
+                "name".to_owned(),
+                OwnedVariant::from(Str::from("Pixel")),
+            )]))
+        });
+        mock.expect_add_match().returning(|_rule| Ok(()));
+
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
+        let devices = std::sync::Arc::new(Mutex::new(Vec::new()));
+
+        resync_devices(&mock, &devices, &output_tx).await;
+
+        let message = output_rx.try_recv().expect("snapshot published");
+        assert_eq!(message.msg_type, MessageType::Devices);
+        let data = message.data.expect("snapshot data");
+        assert_eq!(data["dev-a"]["name"], "Pixel");
+        assert_eq!(devices.lock().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn resync_reports_discovery_failures_to_the_extension() {
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Err(anyhow::anyhow!("lost the bus")));
+
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
+        let devices = std::sync::Arc::new(Mutex::new(Vec::new()));
+
+        resync_devices(&mock, &devices, &output_tx).await;
+
+        let message = output_rx.try_recv().expect("error published");
+        assert_eq!(message.msg_type, MessageType::Error);
+        let text = message.data.expect("error data");
+        assert!(
+            text.as_str().is_some_and(|s| s.contains("lost the bus")),
+            "unexpected message: {text}"
+        );
+        assert!(devices.lock().await.is_empty());
+    }
 
     #[test]
     fn daemon_signals_resync() {
