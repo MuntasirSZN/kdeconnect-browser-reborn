@@ -56,15 +56,11 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           use-cache: false
-      - name: Build (Windows)
-        if: ${{ startsWith(matrix.os, 'windows') }}
-        env:
-          TARGET: ${{ matrix.target }}
+      - name: Build (${{ matrix.os }})
+        if: ${{ !startsWith(matrix.os, 'ubuntu') }}
         run: cargo build --release --target ${{ matrix.target }}
-      - name: Build (Unix)
-        if: ${{ !startsWith(matrix.os, 'windows') }}
-        env:
-          TARGET: ${{ matrix.target }}
+      - name: Build (Linux)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
         run: >
           cargo zigbuild --release --target ${{ matrix.target }}.2.17
       - name: Upload binary
