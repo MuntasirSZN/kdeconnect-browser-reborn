@@ -159,8 +159,19 @@ mod tests {
 
     #[test]
     fn file_urls_are_percent_encoded() {
-        let url = file_url(Path::new("/tmp/a b/фото.png")).expect("file url");
-        assert_eq!(url, "file:///tmp/a%20b/%D1%84%D0%BE%D1%82%D0%BE.png");
+        // Windows requires a drive-absolute path; Unix uses a rooted one.
+        #[cfg(windows)]
+        let (path, expected) = (
+            Path::new(r"C:\tmp\a b\фото.png"),
+            "file:///C:/tmp/a%20b/%D1%84%D0%BE%D1%82%D0%BE.png",
+        );
+        #[cfg(not(windows))]
+        let (path, expected) = (
+            Path::new("/tmp/a b/фото.png"),
+            "file:///tmp/a%20b/%D1%84%D0%BE%D1%82%D0%BE.png",
+        );
+
+        assert_eq!(file_url(path).expect("file url"), expected);
         assert!(file_url(Path::new("relative.png")).is_err());
     }
 
