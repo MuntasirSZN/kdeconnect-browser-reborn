@@ -41,9 +41,8 @@ export function connect(isUserAction = false): void {
   clearBadge("connected");
   emitClearStatus("connected");
 
-  // Debug: log extension ID and host for troubleshooting.
-  const extId = browser.runtime.id;
-  console.info("Connecting to native host", HOST_NAME, "from extension", extId);
+  // Diagnostic: verbose-only, so normal consoles stay quiet.
+  console.debug("Connecting to native host", HOST_NAME, "from extension", browser.runtime.id);
 
   let thisPort: Browser.runtime.Port;
   try {

@@ -5,7 +5,7 @@
  * *is* "a phone is connected".
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { browser } from "wxt/browser";
 
@@ -44,6 +44,8 @@ beforeEach(async () => {
   fakeBrowser.reset();
   vi.resetModules();
   setRemoveAll();
+  // `connect()` writes a verbose diagnostic to console.debug.
+  vi.spyOn(console, "debug").mockImplementation(() => {});
 
   fake = new (await import("./testing/fake-port")).FakePort();
   settings = await import("../settings");
@@ -52,6 +54,10 @@ beforeEach(async () => {
   (browser.runtime as { connectNative: unknown }).connectNative = vi.fn(() => fake);
   vi.mocked(settings.getOptions).mockReturnValue(options(true));
   port = await import("./port");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("ensureConnection", () => {

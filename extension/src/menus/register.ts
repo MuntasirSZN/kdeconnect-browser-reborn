@@ -37,7 +37,14 @@ export function rebuildContextMenus(): void {
       }
 
       for (const entry of buildMenuSpec(getDevices(), getOptions(), menuStrings, IS_FIREFOX)) {
-        void browser.contextMenus.create(entry, () => void browser.runtime.lastError);
+        void browser.contextMenus.create(entry, () => {
+          // Reading lastError marks a failed create as handled; Chrome otherwise
+          // prints an "Unchecked runtime.lastError" warning.
+          const error = browser.runtime.lastError;
+          if (error) {
+            console.debug("context menu create failed:", error.message);
+          }
+        });
       }
 
       menuRebuildInProgress = false;
