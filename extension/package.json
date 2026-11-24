@@ -16,8 +16,9 @@
     "lint": "oxlint --type-aware",
     "lint:ext": "addons-linter .output/firefox-mv2",
     "fmt": "oxfmt",
-    "test": "vitest run",
+    "test": "bun run test:vitest && bun run test:e2e",
     "test:watch": "vitest",
+    "test:vitest": "vitest run",
     "test:e2e": "playwright test",
     "check": "bun run typecheck && bun run lint && bun run test && bun run build && bun run lint:ext",
     "generate-types": "cd .. && cargo test"
