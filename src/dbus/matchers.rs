@@ -27,37 +27,41 @@ fn daemon_match_rule() -> String {
     format!("type='signal',path='{BASE_PATH}',interface='{DAEMON_IFACE}'")
 }
 
-/// Register D-Bus match rules for every property-change signal on a device,
-/// matching the Go `Device.addMatchSignal` calls for each member.
-pub(crate) async fn add_device_match_rules(conn: &Connection, object_path: &str) -> Result<()> {
-    for member in SIGNAL_MEMBERS {
-        let rule = device_match_rule(object_path, member);
-        conn.call_method(
-            Some("org.freedesktop.DBus"),
-            "/org/freedesktop/DBus",
-            Some("org.freedesktop.DBus"),
-            "AddMatch",
-            &(rule.as_str()),
-        )
-        .await
-        .with_context(|| format!("AddMatch({member})"))?;
-    }
-    Ok(())
-}
-
-/// Register a match rule for every signal from the KDE Connect daemon.
-pub(crate) async fn add_daemon_match_rules(conn: &Connection) -> Result<()> {
-    let rule = daemon_match_rule();
+/// The single `AddMatch` call used for one rule on a real connection.
+pub(crate) async fn add_match_rule(conn: &Connection, rule: &str) -> Result<()> {
     conn.call_method(
         Some("org.freedesktop.DBus"),
         "/org/freedesktop/DBus",
         Some("org.freedesktop.DBus"),
         "AddMatch",
-        &(rule.as_str()),
+        &(rule),
     )
     .await
-    .context("AddMatch(daemon signals)")?;
+    .context("AddMatch")?;
     Ok(())
+}
+
+/// Register D-Bus match rules for every property-change signal on a device,
+/// matching the Go `Device.addMatchSignal` calls for each member.
+pub(crate) async fn add_device_match_rules<D: super::Dbus + ?Sized>(
+    conn: &D,
+    object_path: &str,
+) -> Result<()> {
+    for member in SIGNAL_MEMBERS {
+        let rule = device_match_rule(object_path, member);
+        conn.add_match(&rule)
+            .await
+            .with_context(|| format!("AddMatch({member})"))?;
+    }
+    Ok(())
+}
+
+/// Register a match rule for every signal from the KDE Connect daemon
+/// (`deviceAdded`, `deviceRemoved`, `deviceVisibilityChanged`, …).
+pub(crate) async fn add_daemon_match_rules<D: super::Dbus + ?Sized>(conn: &D) -> Result<()> {
+    conn.add_match(&daemon_match_rule())
+        .await
+        .context("AddMatch(daemon signals)")
 }
 
 #[cfg(test)]
@@ -77,6 +81,63 @@ mod tests {
                 )
             );
         }
+    }
+
+    #[tokio::test]
+    async fn add_device_match_rules_registers_one_rule_per_signal() {
+        use crate::dbus::MockDbus;
+        use std::sync::Mutex as StdMutex;
+
+        let recorded: std::sync::Arc<StdMutex<Vec<String>>> =
+            std::sync::Arc::new(StdMutex::new(Vec::new()));
+        let mock_record = recorded.clone();
+        let mut mock = MockDbus::new();
+        mock.expect_add_match()
+            .times(SIGNAL_MEMBERS.len())
+            .returning(move |rule| {
+                mock_record
+                    .lock()
+                    .expect("recorded rules")
+                    .push(rule.to_owned());
+                Ok(())
+            });
+
+        add_device_match_rules(&mock, DEVICE_PATH)
+            .await
+            .expect("register rules");
+
+        let mut actual = recorded.lock().expect("recorded rules").clone();
+        actual.sort_unstable();
+        let mut expected: Vec<String> = SIGNAL_MEMBERS
+            .iter()
+            .map(|member| device_match_rule(DEVICE_PATH, member))
+            .collect();
+        expected.sort_unstable();
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn add_daemon_match_rules_registers_the_daemon_rule() {
+        use crate::dbus::MockDbus;
+        use std::sync::Mutex as StdMutex;
+
+        let recorded: std::sync::Arc<StdMutex<Vec<String>>> =
+            std::sync::Arc::new(StdMutex::new(Vec::new()));
+        let mock_record = recorded.clone();
+        let mut mock = MockDbus::new();
+        mock.expect_add_match().times(1).returning(move |rule| {
+            mock_record
+                .lock()
+                .expect("recorded rules")
+                .push(rule.to_owned());
+            Ok(())
+        });
+
+        add_daemon_match_rules(&mock).await.expect("register rule");
+        assert_eq!(
+            recorded.lock().expect("recorded rules").as_slice(),
+            [daemon_match_rule()]
+        );
     }
 
     #[test]

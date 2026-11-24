@@ -8,14 +8,14 @@ use tokio::sync::Mutex;
 use tracing::warn;
 use zbus::Connection;
 
-use super::props::{fetch_all_props, variant_to_json};
+use super::props::variant_to_json;
 use super::{BASE_PATH, DEST, DeviceState, SharedDevice};
 use crate::types::Device;
 
 /// Fetch **all** device properties and build a `Device` struct.
-async fn fetch_device(conn: &Connection, id: &str) -> Result<Device> {
+async fn fetch_device<D: super::Dbus + ?Sized>(conn: &D, id: &str) -> Result<Device> {
     let obj_path = format!("{BASE_PATH}/devices/{id}");
-    let raw = fetch_all_props(conn, &obj_path).await?;
+    let raw = conn.fetch_all_props(&obj_path).await?;
     let props: HashMap<String, serde_json::Value> = raw
         .iter()
         .map(|(key, value)| (key.clone(), variant_to_json(value)))
@@ -45,8 +45,10 @@ pub(crate) async fn list_device_ids(conn: &Connection) -> Result<Vec<String>> {
 }
 
 /// Enumerate visible reachable devices and fetch their current properties.
-pub(crate) async fn discover_devices(conn: &Connection) -> Result<Vec<SharedDevice>> {
-    let ids = list_device_ids(conn).await?;
+pub(crate) async fn discover_devices<D: super::Dbus + ?Sized>(
+    conn: &D,
+) -> Result<Vec<SharedDevice>> {
+    let ids = conn.list_device_ids().await?;
     let mut devices = Vec::with_capacity(ids.len());
 
     for id in &ids {
@@ -114,6 +116,64 @@ mod tests {
             object_path: format!("/modules/kdeconnect/devices/{}", d.id),
             device: d,
         }))
+    }
+
+    #[tokio::test]
+    async fn discover_devices_fetches_ids_and_properties() {
+        use crate::dbus::MockDbus;
+        use zbus::OwnedVariant;
+        use zbus::wire::Str;
+
+        fn props(name: &str) -> HashMap<String, OwnedVariant> {
+            HashMap::from([("name".to_owned(), OwnedVariant::from(Str::from(name)))])
+        }
+
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Ok(vec!["dev-a".to_owned(), "dev-b".to_owned()]));
+        mock.expect_fetch_all_props()
+            .times(2)
+            .returning(|path: &str| {
+                let name = path.rsplit('/').next().unwrap_or_default().to_owned();
+                Ok(props(&name))
+            });
+
+        let devices = discover_devices(&mock).await.expect("discover_devices");
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].lock().await.device.id, "dev-a");
+        assert_eq!(devices[0].lock().await.device.name, "dev-a");
+        assert_eq!(
+            devices[0].lock().await.object_path,
+            "/modules/kdeconnect/devices/dev-a"
+        );
+    }
+
+    #[tokio::test]
+    async fn discover_devices_skips_devices_whose_properties_fail() {
+        use crate::dbus::MockDbus;
+
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Ok(vec!["dev-a".to_owned(), "dev-b".to_owned()]));
+        mock.expect_fetch_all_props()
+            .times(2)
+            .returning(|path: &str| {
+                if path.ends_with("dev-a") {
+                    Err(anyhow::anyhow!("properties vanished"))
+                } else {
+                    Ok(HashMap::new())
+                }
+            });
+
+        let devices = discover_devices(&mock).await.expect("discover_devices");
+        assert_eq!(
+            devices.len(),
+            1,
+            "the failing device is skipped, the other is kept"
+        );
+        assert_eq!(devices[0].lock().await.device.id, "dev-b");
     }
 
     #[tokio::test]

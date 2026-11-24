@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 use tracing::warn;
 use zbus::Connection;
 
-use crate::dbus::{self, SharedDevice};
+use crate::dbus::{self, Dbus, SharedDevice};
 use crate::image::write_image_to_temp;
 use crate::types::{Message, MessageType, ShareRequest};
 
@@ -122,7 +122,7 @@ pub(crate) async fn handle_share(
         share.url.clone()
     };
 
-    dbus::share_url(conn, &device_id, &url).await?;
+    conn.share_url(&device_id, &url).await?;
 
     Ok(())
 }
