@@ -4,13 +4,7 @@
  */
 
 import { createHash } from "node:crypto";
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -109,10 +103,7 @@ export async function launch(options: LaunchOptions = {}): Promise<Harness> {
       FAKE_HOST_LOG: hostLog,
       FAKE_HOST_MODE_FILE: modeFile,
     },
-    args: [
-      `--disable-extensions-except=${EXTENSION_DIR}`,
-      `--load-extension=${EXTENSION_DIR}`,
-    ],
+    args: [`--disable-extensions-except=${EXTENSION_DIR}`, `--load-extension=${EXTENSION_DIR}`],
   });
 
   let background: Worker;

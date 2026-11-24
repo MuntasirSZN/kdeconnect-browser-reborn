@@ -71,9 +71,7 @@ function handle(frame: Frame): void {
       send({ type: "typeDevices", data: { dev1: phone } });
       if (current === "error") {
         // Error mode also drops the host so the extension has to reconnect.
-        send({ type: "typeError", data: "kdeconnectd not running" }, () =>
-          process.exit(0),
-        );
+        send({ type: "typeError", data: "kdeconnectd not running" }, () => process.exit(0));
       }
       break;
 
