@@ -103,3 +103,7 @@ Options:
 
 Without any flags the program runs as a native messaging host daemon, reading
 JSON messages from stdin and writing responses to stdout.
+
+## Privacy Policy
+
+This project only transmits data to your configured devices in KDE Connect. Nothing else.
