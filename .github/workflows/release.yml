@@ -137,5 +137,4 @@ jobs:
       - name: Create release
         run: >
           gh release create ${GITHUB_REF_NAME} assets/*
-          --title "KDE Connect Browser Reborn ${GITHUB_REF_NAME}"
           --notes-file release.md
