@@ -1,11 +1,2 @@
 # Rust build output
 /target/
-
-# Extension build
-/extension/node_modules/
-/extension/.output/
-/extension/.wxt/
-
-# Playwright
-/extension/test-results/
-/extension/playwright-report/

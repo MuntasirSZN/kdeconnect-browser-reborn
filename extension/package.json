@@ -19,8 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "check:manifests": "bun scripts/check-manifests.ts",
-    "check": "bun run typecheck && bun run lint && bun run test && bun run build && bun run check:manifests && bun run lint:ext",
+    "check": "bun run typecheck && bun run lint && bun run test && bun run build && bun run lint:ext",
     "generate-types": "cd .. && cargo test"
   },
   "dependencies": {

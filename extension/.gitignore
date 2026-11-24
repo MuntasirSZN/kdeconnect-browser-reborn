@@ -1,0 +1,8 @@
+# Extension build
+/node_modules/
+/.output/
+/.wxt/
+
+# Playwright
+/test-results/
+/playwright-report/
