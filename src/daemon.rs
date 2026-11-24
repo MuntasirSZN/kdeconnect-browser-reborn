@@ -12,7 +12,15 @@ use crate::dbus::{self, SharedDevice};
 use crate::image::{SHARE_TEMP_MAX_AGE, cleanup_stale_share_dirs};
 use crate::messages::handle_message;
 use crate::messaging::{Reader, Writer};
-use crate::types::{Message, MessageType};
+use crate::types::{Device, Message, MessageType};
+
+/// One `--devices` listing line.
+pub(crate) fn devices_list_line(dev: &Device) -> String {
+    format!(
+        "- {}: {} (paired: {}; reachable: {})",
+        dev.name, dev.id, dev.is_trusted, dev.is_reachable
+    )
+}
 
 pub(crate) async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Result<()> {
     info!(count = devices.len(), "devices discovered");
@@ -116,21 +124,69 @@ where
     }
 }
 
+/// The protocol-error message sent when the host cannot run.
+fn protocol_error_message(text: &str) -> Message {
+    Message::result(
+        MessageType::Error,
+        serde_json::Value::String(text.to_owned()),
+    )
+}
+
 /// Tell the extension why the host cannot run, before exiting.  Failures to
 /// write are ignored — stderr already carries the error.
 pub(crate) async fn write_protocol_error(text: &str) {
     let mut writer = Writer::stdout();
-    let msg = Message::result(
-        MessageType::Error,
-        serde_json::Value::String(text.to_owned()),
-    );
-    drop(writer.write(&msg).await);
+    drop(writer.write(&protocol_error_message(text)).await);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::Message;
+    use std::collections::HashMap;
+
+    #[expect(
+        clippy::zero_sized_map_values,
+        reason = "mirrors the wire format: supported plugins are a set of names"
+    )]
+    fn device() -> Device {
+        Device {
+            id: "dev1".to_owned(),
+            kind: "phone".to_owned(),
+            name: "Pixel".to_owned(),
+            icon_name: String::new(),
+            status_icon_name: String::new(),
+            is_reachable: false,
+            is_trusted: false,
+            supported_plugins: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn devices_list_lines_show_pairing_and_reachability() {
+        let mut paired = device();
+        paired.is_reachable = true;
+        paired.is_trusted = true;
+        assert_eq!(
+            devices_list_line(&paired),
+            "- Pixel: dev1 (paired: true; reachable: true)"
+        );
+        assert_eq!(
+            devices_list_line(&device()),
+            "- Pixel: dev1 (paired: false; reachable: false)"
+        );
+    }
+
+    #[test]
+    fn protocol_error_message_carries_the_text() {
+        let msg = protocol_error_message("cannot connect to the session bus");
+        assert_eq!(msg.msg_type, MessageType::Error);
+        assert_eq!(msg.id, None);
+        assert_eq!(
+            msg.data,
+            Some(serde_json::json!("cannot connect to the session bus"))
+        );
+    }
 
     #[tokio::test]
     async fn stdin_reader_stops_when_stdout_receiver_is_dropped() {

@@ -96,11 +96,7 @@ async fn main() -> Result<()> {
     // --devices
     if cli.devices {
         for state in &devices {
-            let dev = state.lock().await;
-            println!(
-                "- {}: {} (paired: {}; reachable: {})",
-                dev.device.name, dev.device.id, dev.device.is_trusted, dev.device.is_reachable,
-            );
+            println!("{}", daemon::devices_list_line(&state.lock().await.device));
         }
         return Ok(());
     }
