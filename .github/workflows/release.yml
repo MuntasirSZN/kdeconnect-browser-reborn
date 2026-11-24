@@ -86,6 +86,7 @@ jobs:
         with:
           name: extension-zips
           path: extension/.output/*.zip
+          include-hidden-files: true
           if-no-files-found: error
 
   release:
