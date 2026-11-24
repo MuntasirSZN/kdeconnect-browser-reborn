@@ -138,3 +138,4 @@ jobs:
         run: >
           gh release create ${GITHUB_REF_NAME} assets/*
           --notes-file release.md
+          --discussion-category announcements
