@@ -14,7 +14,7 @@
 
 import { appendFileSync, readFileSync } from "node:fs";
 
-const PROTOCOL_VERSION = "1.0.0";
+const PROTOCOL_VERSION = "1.0.1";
 
 const LOG = process.env.FAKE_HOST_LOG;
 const MODE_FILE = process.env.FAKE_HOST_MODE_FILE;

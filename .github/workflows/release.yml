@@ -126,7 +126,12 @@ jobs:
           mkdir -p assets
           while IFS= read -r f; do
             [ -n "$f" ] || continue
-            dest=$(printf '%s' "$f" | sed 's|^\./||; s|/|_|g')
+            name=$(basename "$f")
+            parent=$(basename "$(dirname "$f")")
+            case "$parent" in
+              kdeconnect-browser-reborn-*) dest="$parent" ;;
+              *) dest="$name" ;;
+            esac
             cp "$f" "assets/$dest"
           done < <(find . -type f \( -path '*/kdeconnect-browser-reborn*' -o -path '*/extension-zips/*.zip' \) | sort)
       - name: Create release
