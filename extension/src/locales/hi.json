@@ -1,0 +1,22 @@
+{
+  "kdeconnect_name": {
+    "message": "KDE Connect Browser Reborn",
+    "description": "Extension name shown in the browser UI."
+  },
+  "kdeconnect_description": {
+    "message": "आपके ब्राउज़र से पेज, वीडियो और इमेज को KDE Connect डिवाइस पर साझा करने की अनुमति देता है।",
+    "description": "Extension description shown in the browser UI."
+  },
+  "kdeconnect_root": {
+    "message": "KDE Connect Browser Reborn",
+    "description": "Title of the grouped context-menu submenu."
+  },
+  "kdeconnect_open_device": {
+    "message": "'$1' पर खोलें",
+    "description": "Context-menu item that shares the current URL. $1 is the device name."
+  },
+  "kdeconnect_call_device": {
+    "message": "'$1' पर कॉल करें",
+    "description": "Context-menu item that sends a tel: link to the device. $1 is the device name."
+  }
+}

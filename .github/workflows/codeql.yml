@@ -8,13 +8,19 @@ on:
   schedule:
     - cron: "30 7 * * 0"
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
     permissions:
-      security-events: write
-      packages: read
+      security-events: write  # Upload the analysis results to the repository's Security tab
+      packages: read          # CodeQL reads packages during analysis
     strategy:
       fail-fast: false
       matrix:

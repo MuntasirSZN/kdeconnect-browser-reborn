@@ -1,0 +1,22 @@
+{
+  "kdeconnect_name": {
+    "message": "KDE Connect Browser Reborn",
+    "description": "Extension name shown in the browser UI."
+  },
+  "kdeconnect_description": {
+    "message": "브라우저에서 페이지, 동영상, 이미지를 KDE Connect 기기로 공유할 수 있습니다.",
+    "description": "Extension description shown in the browser UI."
+  },
+  "kdeconnect_root": {
+    "message": "KDE Connect Browser Reborn",
+    "description": "Title of the grouped context-menu submenu."
+  },
+  "kdeconnect_open_device": {
+    "message": "'$1'에서 열기",
+    "description": "Context-menu item that shares the current URL. $1 is the device name."
+  },
+  "kdeconnect_call_device": {
+    "message": "'$1'에서 호출",
+    "description": "Context-menu item that sends a tel: link to the device. $1 is the device name."
+  }
+}

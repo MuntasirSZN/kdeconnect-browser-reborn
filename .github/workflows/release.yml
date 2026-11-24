@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # Release builds: 3 OS × 2 arches = 6 binaries, all built with cargo-zigbuild.
 permissions: {}
 
@@ -52,11 +56,15 @@ jobs:
           use-cache: false
       - name: Build (Windows)
         if: ${{ startsWith(matrix.os, 'windows') }}
-        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release --target "$TARGET"
       - name: Build (Unix)
         if: ${{ !startsWith(matrix.os, 'windows') }}
+        env:
+          TARGET: ${{ matrix.target }}
         run: >
-          cargo zigbuild --release --target ${{ matrix.target }}.2.17
+          cargo zigbuild --release --target "$TARGET".2.17
       - name: Upload binary
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -99,7 +107,7 @@ jobs:
     needs: [build, extension]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # Required by `gh release create` and `gh release upload`
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
