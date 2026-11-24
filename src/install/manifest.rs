@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
-use tracing::{info, warn};
+#[cfg(not(windows))]
+use tracing::info;
+use tracing::warn;
 
 pub(crate) const HOST_NAME: &str = "io.github.muntasirszn.kdeconnect_browser_reborn";
 pub(crate) const BINARY_NAME: &str = "kdeconnect-browser-reborn";
