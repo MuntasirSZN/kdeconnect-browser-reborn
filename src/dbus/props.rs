@@ -70,3 +70,58 @@ pub(crate) fn variant_to_json(v: &OwnedVariant) -> serde_json::Value {
     let json = serde_json::to_value(v).unwrap_or(serde_json::Value::Null);
     json.get("value").cloned().unwrap_or(json)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zbus::wire::{Array, Str, Variant};
+
+    /// `OwnedVariant` is the concrete D-Bus value type; build one from the
+    /// `Variant` it owns.
+    fn variant(v: Variant<'static>) -> OwnedVariant {
+        OwnedVariant::try_from(v).expect("variant")
+    }
+
+    #[test]
+    fn string_variants_unwrap_to_their_value() {
+        let value = variant(Variant::Str(Str::from("Pixel")));
+        assert_eq!(
+            variant_to_json(&value),
+            serde_json::json!("Pixel"),
+            "the signature wrapper is stripped"
+        );
+        assert_eq!(
+            owned_value_to_json::<String>(&value).expect("decode string"),
+            "Pixel"
+        );
+    }
+
+    #[test]
+    fn array_variants_keep_every_element() {
+        let value = variant(Variant::Array(Array::from(vec![
+            Str::from("ping"),
+            Str::from("share"),
+        ])));
+        assert_eq!(
+            variant_to_json(&value),
+            serde_json::json!(["ping", "share"])
+        );
+        assert_eq!(
+            owned_value_to_json::<Vec<String>>(&value).expect("decode array"),
+            vec!["ping".to_owned(), "share".to_owned()]
+        );
+    }
+
+    #[test]
+    fn boolean_variants_decode_to_bools() {
+        let value = variant(Variant::Bool(true));
+        assert_eq!(variant_to_json(&value), serde_json::json!(true));
+        assert!(owned_value_to_json::<bool>(&value).expect("decode bool"));
+    }
+
+    #[test]
+    fn decoding_a_mismatched_type_is_an_error() {
+        let value = variant(Variant::Str(Str::from("text")));
+        assert!(owned_value_to_json::<bool>(&value).is_err());
+    }
+}

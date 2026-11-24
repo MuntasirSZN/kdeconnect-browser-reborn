@@ -150,4 +150,64 @@ mod tests {
             InputEvent::StdoutClosed
         ));
     }
+
+    #[tokio::test]
+    async fn an_already_closed_stdout_short_circuits_the_read() {
+        let (_stdin_tx, stdin_rx) = tokio::io::duplex(64);
+        let mut reader = Reader::new(stdin_rx);
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+        drop(output_rx);
+
+        assert!(matches!(
+            read_input_or_output_closed(&mut reader, &output_tx).await,
+            InputEvent::StdoutClosed
+        ));
+    }
+
+    #[tokio::test]
+    async fn stdin_eof_is_a_clean_read_none() {
+        let (stdin_tx, stdin_rx) = tokio::io::duplex(64);
+        drop(stdin_tx);
+        let mut reader = Reader::new(stdin_rx);
+        let (output_tx, _output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+        assert!(matches!(
+            read_input_or_output_closed(&mut reader, &output_tx).await,
+            InputEvent::Read(Ok(None))
+        ));
+    }
+
+    #[tokio::test]
+    async fn framed_stdin_is_read_as_one_message() {
+        let (stdin_tx, stdin_rx) = tokio::io::duplex(1024);
+        let mut writer = Writer::new(stdin_tx);
+        writer
+            .write(&Message::result(
+                MessageType::Version,
+                serde_json::json!("probe"),
+            ))
+            .await
+            .expect("write frame");
+        let mut reader = Reader::new(stdin_rx);
+        let (output_tx, _output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+        let InputEvent::Read(Ok(Some(msg))) =
+            read_input_or_output_closed(&mut reader, &output_tx).await
+        else {
+            panic!("expected one framed message");
+        };
+        assert_eq!(msg.msg_type, MessageType::Version);
+        assert_eq!(msg.data, Some(serde_json::json!("probe")));
+    }
+
+    #[tokio::test]
+    async fn a_truncated_frame_surfaces_as_a_read_error() {
+        let mut reader = Reader::new(&[0_u8, 1][..]);
+        let (output_tx, _output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+
+        assert!(matches!(
+            read_input_or_output_closed(&mut reader, &output_tx).await,
+            InputEvent::Read(Err(_))
+        ));
+    }
 }

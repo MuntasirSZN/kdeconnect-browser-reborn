@@ -31,12 +31,15 @@
     "@playwright/test": "^1.65.1",
     "@types/chrome": "^0.3.7",
     "@types/node": "^26.6.6",
+    "@vitest/coverage-istanbul": "^5.1.1",
     "@wxt-dev/i18n": "^0.2.9",
     "addons-linter": "^10.16.0",
+    "oxc-coverage-instrument": "^0.21.2",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
     "tsrs": "^7.1.0-beta.tsrs5",
     "typescript": "^7.0.2",
+    "vite-plugin-istanbul": "^9.0.1",
     "vitest": "^5.1.1",
     "wxt": "^0.21.5"
   }
