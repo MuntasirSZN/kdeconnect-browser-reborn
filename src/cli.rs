@@ -2,7 +2,7 @@
 
 use clap::Parser;
 
-pub(crate) const CLI_VERSION: &str = "0.1.0";
+pub(crate) const CLI_VERSION: &str = "1.0.0";
 
 /// KDE Connect Browser Reborn — Native Messaging Host.
 #[expect(

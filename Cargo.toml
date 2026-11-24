@@ -1,6 +1,6 @@
 [package]
 name = "kdeconnect-browser-reborn"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.95"
 description = "Native messaging host bridging Chrome/Firefox with KDE Connect via D-Bus"
@@ -43,7 +43,7 @@ zbus = "6"
 mockall = "0.15"
 
 # Windows: install via the HKCU registry (no directory to write).
-[target.'cfg(windows)'.dependencies]
+[target."cfg(windows)".dependencies]
 winreg = "0.56"
 
 [lints]
