@@ -467,13 +467,13 @@ fn install_windows(
         let manifest = match family {
             ManifestFamily::Chromium => manifest_for(
                 &mut chromium,
-                dir.join("chromium"),
+                &dir.join("chromium"),
                 family,
                 &host,
                 extension_id,
             )?,
             ManifestFamily::Gecko => {
-                manifest_for(&mut gecko, dir.join("gecko"), family, &host, extension_id)?
+                manifest_for(&mut gecko, &dir.join("gecko"), family, &host, extension_id)?
             }
         };
         let root = match browser.registry_root() {
@@ -489,7 +489,7 @@ fn install_windows(
 #[cfg(windows)]
 fn manifest_for(
     cache: &mut Option<PathBuf>,
-    dir: PathBuf,
+    dir: &Path,
     family: ManifestFamily,
     host: &Path,
     extension_id: &str,
@@ -497,7 +497,7 @@ fn manifest_for(
     if let Some(path) = cache {
         return Ok(path.clone());
     }
-    let path = manifest::write_manifest(&dir, family, host, extension_id)?;
+    let path = manifest::write_manifest(dir, family, host, extension_id)?;
     *cache = Some(path.clone());
     Ok(path)
 }
