@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { defineConfig } from "wxt";
 
 const icons = {
@@ -16,7 +18,17 @@ export default defineConfig({
   publicDir: "public",
   imports: false,
   modules: ["@wxt-dev/i18n/module"],
-  manifest: ({ manifestVersion }) => ({
+  manifest: ({ manifestVersion, browser }) => ({
+    // Pin the unpacked extension id for E2E so the native-messaging manifest
+    // can allow it. Chrome-only: the key is not part of a release build.
+    ...(process.env.E2E === "1" && browser === "chrome"
+      ? {
+          key: readFileSync(
+            new URL("./e2e/fixtures/extension-key.pub", import.meta.url),
+            "utf8",
+          ).trim(),
+        }
+      : {}),
     name: "__MSG_kdeconnect_name__",
     short_name: "kdeconnect-browser-reborn",
     description: "__MSG_kdeconnect_description__",
