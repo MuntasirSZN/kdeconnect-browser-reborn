@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.95"
 description = "Native messaging host bridging Chrome/Firefox with KDE Connect via D-Bus"
 repository = "https://github.com/MuntasirSZN/kdeconnect-browser-reborn"
-license = "MIT"
+license = "GPL-3.0-or-later"
 keywords = ["browser", "d-bus", "kde", "kdeconnect", "native-messaging"]
 categories = ["command-line-utilities", "development-tools"]
 

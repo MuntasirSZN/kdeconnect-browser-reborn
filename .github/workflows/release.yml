@@ -121,9 +121,16 @@ jobs:
         env:
           OUTPUT: release.md
           GITHUB_REPO: ${{ github.repository }}
+      - name: Stage assets
+        run: |
+          mkdir -p assets
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            dest=$(printf '%s' "$f" | sed 's|^\./||; s|/|_|g')
+            cp "$f" "assets/$dest"
+          done < <(find . -type f \( -path '*/kdeconnect-browser-reborn*' -o -path '*/extension-zips/*.zip' \) | sort)
       - name: Create release
         run: >
-          gh release create ${GITHUB_REF_NAME}
-          $(find . -type f \( -path '*/kdeconnect-browser-reborn*' -o -path '*/extension-zips/*.zip' \) | sort)
+          gh release create ${GITHUB_REF_NAME} assets/*
           --title "KDE Connect Browser Reborn ${GITHUB_REF_NAME}"
           --notes-file release.md

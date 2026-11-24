@@ -1,4 +1,4 @@
-# KDE Connect Browser Reborn ![License-MIT](https://img.shields.io/badge/license-MIT-red.svg)
+# KDE Connect Browser Reborn ![License](https://img.shields.io/github/license/MuntasirSZN/kdeconnect-browser-reborn)
 
 A Firefox and Chromium-based browser extension to send pages and content from
 your browser to connected KDE Connect devices, via browser action or context menu.
