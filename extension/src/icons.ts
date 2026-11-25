@@ -1,7 +1,9 @@
 import { Laptop, Monitor, MonitorSmartphone, Smartphone, Tablet, Tv } from "lucide";
 
+/** KDE Connect device icon names used for menus and the popup. */
 export type IconName = "smartphone" | "tablet" | "laptop" | "monitor" | "tv" | "monitor-smartphone";
 
+/** Lucide icon nodes for `DEVICE_ICON_KEYS`. */
 export const DEVICE_ICONS = { Laptop, Monitor, MonitorSmartphone, Smartphone, Tablet, Tv };
 
 /** Map a KDE Connect device type to a Lucide icon name. */
@@ -32,8 +34,10 @@ const DEVICE_ICON_KEYS: Record<IconName, keyof typeof DEVICE_ICONS> = {
   "monitor-smartphone": "MonitorSmartphone",
 };
 
+/** Cache of generated menu-icon data URLs, keyed by icon name. */
 const menuIconCache = new Map<IconName, string>();
 
+/** Escape a string for embedding inside a generated SVG attribute. */
 function escapeSvgAttribute(value: string | number): string {
   return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }

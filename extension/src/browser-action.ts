@@ -7,11 +7,15 @@ import { browser } from "wxt/browser";
 /** The Chrome action / Firefox browserAction API pair. */
 type ActionApi = NonNullable<typeof browser.action> | NonNullable<typeof browser.browserAction>;
 
+/** State of one badge source: the badge text and its background color. */
 interface BadgeState {
+  /** Badge text shown in the toolbar button. */
   text: string;
+  /** Badge background color as `[r, g, b, a]`. */
   color: [number, number, number, number];
 }
 
+/** Live badge states, keyed by the source that set them. */
 const badges: Record<string, BadgeState> = {};
 
 /** Resolve the action API once: Chrome has `action`, Firefox has `browserAction`. */
@@ -29,11 +33,13 @@ export function setBadge(source: string, state: BadgeState): void {
   void applyBadge();
 }
 
+/** Remove the badge set by `source`; the top remaining badge, if any, shows. */
 export function clearBadge(source: string): void {
   delete badges[source];
   void applyBadge();
 }
 
+/** Render the top badge of all live sources, or clear the badge when none remain. */
 async function applyBadge(): Promise<void> {
   const keys = Object.keys(badges);
   const api = actionApi();

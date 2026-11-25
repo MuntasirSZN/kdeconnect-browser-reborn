@@ -22,6 +22,7 @@ pub(crate) fn devices_list_line(dev: &Device) -> String {
     )
 }
 
+/// Run the daemon: register match rules, forward device signals, and serve stdin.
 pub(crate) async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice>) -> Result<()> {
     info!(count = devices.len(), "devices discovered");
 
@@ -99,6 +100,7 @@ pub(crate) async fn run_daemon(conn: zbus::Connection, devices: Vec<SharedDevice
     Ok(())
 }
 
+/** Outcome of one poll of `read_input_or_output_closed`: a message, or the shutdown signal. */
 enum InputEvent {
     StdoutClosed,
     Read(Result<Option<Message>>),

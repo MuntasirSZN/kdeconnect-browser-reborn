@@ -28,6 +28,7 @@ interface FirefoxPort {
   error?: { message?: string };
 }
 
+/** Connect unless already connected or disabled; user actions reset the backoff budget. */
 export function connect(isUserAction = false): void {
   if (port || !getOptions().enabled) return;
 
@@ -66,6 +67,7 @@ export function connect(isUserAction = false): void {
   thisPort.postMessage({ type: "typeDevices" });
 }
 
+/** Handle a port disconnection: drop the port, report the error, retry with backoff. */
 function onDisconnect(thisPort: Browser.runtime.Port): void {
   if (thisPort !== port) return;
   port = null;
@@ -119,6 +121,7 @@ export function postShare(data: ShareRequest): void {
   port.postMessage(shareRequest(data.target, data.url, data.imageData));
 }
 
+/** Route a native-host message to the browser-side effects it produces. */
 function onPortMessage(raw: unknown, thisPort: Browser.runtime.Port): void {
   if (thisPort !== port) return;
 
@@ -135,6 +138,7 @@ function onPortMessage(raw: unknown, thisPort: Browser.runtime.Port): void {
   }
 }
 
+/** Apply one translated host effect to the device cache, menus, and status. */
 function applyEffect(effect: HostEffect): void {
   switch (effect.kind) {
     case "devices":

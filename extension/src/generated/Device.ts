@@ -7,4 +7,36 @@ import type { Empty } from "./Empty";
  * Field names match the Go `Device` struct's JSON tags exactly for wire
  * compatibility with the existing browser extension.
  */
-export type Device = { id: string, type: string, name: string, iconName: string, statusIconName: string, isReachable: boolean, isTrusted: boolean, supportedPlugins: { [key in string]: Empty }, };
+export type Device = { 
+/**
+ * KDE Connect device id.
+ */
+id: string, 
+/**
+ * Device kind (`type` in the wire format), e.g. `phone`.
+ */
+type: string, 
+/**
+ * Display name of the device.
+ */
+name: string, 
+/**
+ * Icon name (`iconName`) used by the browser.
+ */
+iconName: string, 
+/**
+ * Status icon name (`statusIconName`).
+ */
+statusIconName: string, 
+/**
+ * Whether the device is currently reachable.
+ */
+isReachable: boolean, 
+/**
+ * Whether the device is trusted (paired) by the host.
+ */
+isTrusted: boolean, 
+/**
+ * Set of supported plugin names, as an object map to match the wire format.
+ */
+supportedPlugins: { [key in string]: Empty }, };

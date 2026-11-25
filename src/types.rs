@@ -11,16 +11,20 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
 pub(crate) struct Message {
+    /// Correlation id echoed by the host on replies, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// The message type.
     #[serde(rename = "type")]
     pub msg_type: MessageType,
+    /// Message payload; interpretation depends on `msg_type`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts-export", ts(type = "unknown"))]
     pub data: Option<serde_json::Value>,
 }
 
 impl Message {
+    /// Build an outbound message without an id.
     pub(crate) fn result(msg_type: MessageType, data: serde_json::Value) -> Self {
         Self {
             id: None,
@@ -43,16 +47,22 @@ impl Message {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
 pub(crate) enum MessageType {
+    /// `typeDevices`: the device snapshot.
     #[serde(rename = "typeDevices")]
     Devices,
+    /// `typeShare`: share a URL with a device.
     #[serde(rename = "typeShare")]
     Share,
+    /// `typeShareResult`: host reply to `typeShare`.
     #[serde(rename = "typeShareResult")]
     ShareResult,
+    /// `typeDeviceUpdate`: one device's updated state (host → browser).
     #[serde(rename = "typeDeviceUpdate")]
     DeviceUpdate,
+    /// `typeError`: an error message (host → browser).
     #[serde(rename = "typeError")]
     Error,
+    /// `typeVersion`: host version handshake.
     #[serde(rename = "typeVersion")]
     Version,
 }
@@ -61,7 +71,9 @@ pub(crate) enum MessageType {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
 pub(crate) struct ShareRequest {
+    /// Target KDE Connect device id, as sent by the browser.
     pub target: String,
+    /// URL to share (`http(s)` or `tel:`).
     pub url: String,
     /// Base64-encoded image bytes, sent for image context clicks. When present,
     /// the host writes the data to a temp file and shares that instead of the
@@ -90,14 +102,22 @@ impl Serialize for Empty {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts-export", derive(TS), ts(export))]
 pub(crate) struct Device {
+    /// KDE Connect device id.
     pub id: String,
+    /// Device kind (`type` in the wire format), e.g. `phone`.
     #[serde(rename = "type")]
     pub kind: String,
+    /// Display name of the device.
     pub name: String,
+    /// Icon name (`iconName`) used by the browser.
     pub icon_name: String,
+    /// Status icon name (`statusIconName`).
     pub status_icon_name: String,
+    /// Whether the device is currently reachable.
     pub is_reachable: bool,
+    /// Whether the device is trusted (paired) by the host.
     pub is_trusted: bool,
+    /// Set of supported plugin names, as an object map to match the wire format.
     #[expect(
         clippy::zero_sized_map_values,
         reason = "the set of plugin names is modelled as an object map over the zero-sized marker type; a real set would change the extension wire format"

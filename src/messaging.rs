@@ -19,7 +19,9 @@ use crate::types::Message;
 /// Collect JSON output without ever allocating beyond the protocol limit.
 #[derive(Default)]
 struct BoundedBuffer {
+    /// Collected bytes so far.
     bytes: Vec<u8>,
+    /// Set when `MAX_MESSAGE_SIZE` was exceeded.
     exceeded: bool,
 }
 

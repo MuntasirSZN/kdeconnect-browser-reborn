@@ -21,6 +21,7 @@ const menuStrings: MenuStrings = {
   call: (name) => i18n.t("kdeconnect_call_device", [name]),
 };
 
+/** Re-create the context menus from the current device and option state. */
 export function rebuildContextMenus(): void {
   menuRebuildQueued = true;
   if (menuRebuildInProgress) return;

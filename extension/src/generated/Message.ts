@@ -4,4 +4,16 @@ import type { MessageType } from "./MessageType";
 /**
  * Messages exchanged with the browser extension over native messaging.
  */
-export type Message = { id?: string | null, type: MessageType, data?: unknown, };
+export type Message = { 
+/**
+ * Correlation id echoed by the host on replies, if any.
+ */
+id?: string | null, 
+/**
+ * The message type.
+ */
+type: MessageType, 
+/**
+ * Message payload; interpretation depends on `msg_type`.
+ */
+data?: unknown, };

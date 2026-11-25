@@ -4,31 +4,49 @@ import type { Device } from "../generated/types";
 import type { ExtensionOptions } from "../shared-types";
 import { deviceMenuIcon } from "../icons";
 
+/** Which action a menu entry performs. */
 export type MenuAction = "open-link" | "open-page" | "call" | "open-tab";
 
+/** One context-menu entry shown in the browser's context menus. */
 export interface MenuEntry {
+  /** Menu id, `<action>@<deviceId>`. */
   id: string;
+  /** Visible title of the entry. */
   title: string;
+  /** Contexts the entry appears in (link, image, audio, video, page, tab). */
   contexts: [`${Browser.contextMenus.ContextType}`, ...`${Browser.contextMenus.ContextType}`[]];
+  /** Target-URL globs for link/image/audio/video entries. */
   targetUrlPatterns?: string[];
+  /** Page-URL globs for page and tab entries. */
   documentUrlPatterns?: string[];
+  /** Firefox-only icons for the entry. */
   icons?: { 16: string };
 }
 
+/** The string labels for a device's menu entries, from the native side. */
 export interface MenuStrings {
+  /** Label for the "share this link/page" entries, given the device name. */
   open: (name: string) => string;
+  /** Label for the call entry, given the device name. */
   call: (name: string) => string;
 }
 
+/** Click information surfaced by the browser for a context-menu item. */
 export interface MenuClickInfo {
+  /** URL of the clicked link, if any. */
   linkUrl?: string;
+  /** URL of the clicked image, if any. */
   srcUrl?: string;
+  /** URL of the current page. */
   pageUrl?: string;
 }
 
+/** URL patterns for shareable http(s) links and image/audio/video contexts. */
 const HTTP_PATTERNS = ["http://*/*", "https://*/*"];
+/** The four actions a device menu can offer. */
 const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "call", "open-tab"];
 
+/** Build the `MenuEntry` for one action on one device. */
 function entryFor(
   action: MenuAction,
   device: Device,
@@ -114,6 +132,7 @@ export function buildMenuSpec(
   return entries;
 }
 
+/** Parse `<action>@<deviceId>` menu ids; null when malformed. */
 export function parseMenuId(id: string): { action: MenuAction; deviceId: string } | null {
   const at = id.indexOf("@");
   if (at <= 0 || at === id.length - 1) return null;
@@ -132,10 +151,12 @@ function isWebUrl(value: string): boolean {
   }
 }
 
+/** tel: URL check; ignores surrounding whitespace. */
 function isTelUrl(value: string): boolean {
   return /^tel:[^\s]+$/i.test(value);
 }
 
+/** Resolve the URL a menu action shares: the link, page, or tab URL, or null. */
 export function resolveMenuUrl(
   action: MenuAction,
   info: MenuClickInfo,

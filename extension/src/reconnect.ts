@@ -6,17 +6,23 @@
  * while a session that stayed up long enough resets the counter.
  */
 
+/** Reconnect delays: 1s start, doubling to a 15s cap, reset after a stable session. */
 export const MAX_RETRIES = 5;
+/** Time after which a session counts as stable and resets the retry counter. */
 export const STABLE_SESSION_MS = 5_000;
 
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 15_000;
 
+/** Mutable backoff state shared by the retry policy. */
 export interface RetryState {
+  /** Connect attempts made since the last reset. */
   retryCount: number;
+  /** `Date.now()` when the host last completed its handshake, or null. */
   handshakeAt: number | null;
 }
 
+/** Start with no attempts made and no handshake recorded. */
 export function createRetryState(): RetryState {
   return { retryCount: 0, handshakeAt: null };
 }

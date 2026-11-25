@@ -8,6 +8,7 @@ import type { ExtensionOptions } from "../../shared-types";
 import { setDefaultDeviceId, getDefaultDeviceId } from "../../options/state";
 import { writeDevices, setSaveStatus, toggleDefaultDevice } from "../../options/render";
 
+/** Read the options form into the `ExtensionOptions` shape. */
 function readOptions(): ExtensionOptions {
   return {
     enabled: (document.getElementById("enabled") as HTMLInputElement)?.checked ?? true,
@@ -18,6 +19,7 @@ function readOptions(): ExtensionOptions {
   };
 }
 
+/** Persist `readOptions()` and clear the save status on success. */
 async function save(): Promise<void> {
   try {
     await saveOptions(readOptions());

@@ -12,9 +12,13 @@ export function imageBytesAllowed(size: number): boolean {
   return size > 0 && size <= MAX_IMAGE_BYTES;
 }
 
+/** Raw click info; image data is only transferred when the click targets the image itself. */
 export interface ImageClickInfo {
+  /** Media type when the click targets an image. */
   mediaType?: string;
+  /** Link URL when the image sits inside a link. */
   linkUrl?: string;
+  /** Image URL of the clicked image. */
   srcUrl?: string;
 }
 

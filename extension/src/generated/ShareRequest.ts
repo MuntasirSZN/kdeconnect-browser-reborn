@@ -3,7 +3,15 @@
 /**
  * Share request payload — sent by the browser extension.
  */
-export type ShareRequest = { target: string, url: string, 
+export type ShareRequest = { 
+/**
+ * Target KDE Connect device id, as sent by the browser.
+ */
+target: string, 
+/**
+ * URL to share (`http(s)` or `tel:`).
+ */
+url: string, 
 /**
  * Base64-encoded image bytes, sent for image context clicks. When present,
  * the host writes the data to a temp file and shares that instead of the

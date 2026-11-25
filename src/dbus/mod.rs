@@ -22,11 +22,16 @@ pub(crate) use matchers::{add_daemon_match_rules, add_device_match_rules};
 pub(crate) use share::{check_capability, share_url};
 pub(crate) use signals::spawn_signal_listener;
 
+/// The service name of the KDE Connect D-Bus service.
 pub(crate) const DEST: &str = "org.kde.kdeconnect";
+/// Root object path of the KDE Connect daemon.
 pub(crate) const BASE_PATH: &str = "/modules/kdeconnect";
+/// Plugin name for the share plugin on devices.
 pub(crate) const PLUGIN_SHARE: &str = "kdeconnect_share";
+/// Interface of the KDE Connect daemon object.
 pub(crate) const DAEMON_IFACE: &str = "org.kde.kdeconnect.daemon";
 
+/// Interface of a device object.
 pub(crate) const DEVICE_IFACE: &str = "org.kde.kdeconnect.device";
 
 use std::collections::HashMap;
@@ -84,7 +89,9 @@ pub(crate) type SharedDevice = Arc<Mutex<DeviceState>>;
 
 /// Mutable device state kept in sync with D-Bus properties.
 pub(crate) struct DeviceState {
+    /// The device's cached state.
     pub device: Device,
+    /// D-Bus object path of the device.
     pub object_path: String,
 }
 

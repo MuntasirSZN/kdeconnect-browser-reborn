@@ -29,6 +29,7 @@ pub(crate) enum Browser {
 }
 
 impl Browser {
+    /// All browsers in display order.
     fn all() -> &'static [Self] {
         &[
             Self::Chrome,
@@ -42,6 +43,7 @@ impl Browser {
         ]
     }
 
+    /// Display label for the browser.
     fn label(self) -> &'static str {
         match self {
             Self::Chrome => "Google Chrome",
@@ -62,6 +64,7 @@ impl Browser {
             reason = "Windows installs register via registry roots, not keys"
         )
     )]
+    /// Stable key for browser config directories; unused on Windows (registry roots instead).
     fn key(self) -> &'static str {
         match self {
             Self::Chrome | Self::Custom => "default",

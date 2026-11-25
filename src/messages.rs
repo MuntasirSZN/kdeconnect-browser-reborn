@@ -11,6 +11,7 @@ use crate::dbus::{self, Dbus, SharedDevice};
 use crate::image::write_image_to_temp;
 use crate::types::{Message, MessageType, ShareRequest};
 
+/// Wire protocol version served by the host.
 pub(crate) const PROTOCOL_VERSION: &str = "1.0.1";
 
 /// The host's reply to a `typeVersion` request.
@@ -44,6 +45,7 @@ async fn find_device_by_id(
     None
 }
 
+/// Route an inbound extension message to its handler, replying via `output_tx`.
 pub(crate) async fn handle_message(
     conn: &Connection,
     devices: &Arc<Mutex<Vec<SharedDevice>>>,
@@ -93,6 +95,7 @@ pub(crate) async fn handle_message(
     Ok(())
 }
 
+/// Validate and forward a share request to the target device over D-Bus.
 pub(crate) async fn handle_share(
     conn: &Connection,
     devices: &Arc<Mutex<Vec<SharedDevice>>>,

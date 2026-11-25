@@ -8,10 +8,13 @@ use serde::Serialize;
 use tracing::info;
 use tracing::warn;
 
+/// Native-messaging host binary: the name registered in native-messaging manifests.
 pub(crate) const HOST_NAME: &str = "io.github.muntasirszn.kdeconnect_browser_reborn";
+/// The name of this executable, `kdeconnect-browser-reborn`.
 pub(crate) const BINARY_NAME: &str = "kdeconnect-browser-reborn";
 /// Chrome Web Store id; the extension is not published yet, so --dev falls back to it.
 pub(crate) const DEFAULT_EXTENSION_ID: &str = "ofmplbbfigookafjahpeepbggpofdhbo";
+/// Web Store id of the extension; the extension is not published yet, so `--dev` falls back to it.
 pub(crate) const FIREFOX_EXTENSION_ID: &str = "kdeconnect-browser-reborn@muntasirszn.github.io";
 
 /// Chrome extension IDs contain exactly 32 lowercase characters in a-p.
@@ -151,7 +154,9 @@ pub(crate) fn do_install(
 
 #[derive(Debug)]
 struct ManifestContext {
+    /// Path of the host binary the manifest points to.
     path: String,
+    /// Extension id to allow (Chrome only; `None` for Gecko).
     extension_id: Option<String>,
 }
 
