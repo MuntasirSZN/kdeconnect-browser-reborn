@@ -208,32 +208,30 @@ mod tests {
         );
     }
 
+    /// Parse the Gecko manifest rendered for the standard test host path.
+    fn gecko_manifest_json() -> serde_json::Value {
+        let ctx = ManifestContext::firefox("/usr/lib/native-host");
+        serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
+            .expect("gecko manifest parses")
+    }
+
     #[test]
     fn firefox_manifest_uses_allowed_extensions() {
-        let ctx = ManifestContext::firefox("/usr/lib/native-host");
-        let json: serde_json::Value =
-            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
-                .unwrap();
+        let json = gecko_manifest_json();
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
         assert!(json.get("allowed_origins").is_none());
     }
 
     #[test]
     fn firefox_manifest_name_is_the_new_host_name() {
-        let ctx = ManifestContext::firefox("/usr/lib/native-host");
-        let json: serde_json::Value =
-            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
-                .unwrap();
+        let json = gecko_manifest_json();
         assert_eq!(json["name"], HOST_NAME);
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
     }
 
     #[test]
     fn gecko_manifest_is_shared_by_firefox_and_tor() {
-        let ctx = ManifestContext::firefox("/usr/lib/native-host");
-        let json: serde_json::Value =
-            serde_json::from_str(&render_manifest(ManifestFamily::Gecko, &ctx).expect("manifest"))
-                .unwrap();
+        let json = gecko_manifest_json();
         assert_eq!(json["allowed_extensions"][0], FIREFOX_EXTENSION_ID);
         assert!(json.get("allowed_origins").is_none());
     }

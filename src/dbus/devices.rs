@@ -93,6 +93,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use crate::dbus::MockDbus;
 
     #[expect(
         clippy::zero_sized_map_values,
@@ -118,10 +119,17 @@ mod tests {
         }))
     }
 
+    /// Mock whose `list_device_ids` returns the two test devices.
+    fn two_device_ids_mock() -> MockDbus {
+        let mut mock = MockDbus::new();
+        mock.expect_list_device_ids()
+            .times(1)
+            .returning(|| Ok(vec!["dev-a".to_owned(), "dev-b".to_owned()]));
+        mock
+    }
+
     #[tokio::test]
     async fn discover_devices_returns_an_empty_list_when_no_devices_are_visible() {
-        use crate::dbus::MockDbus;
-
         let mut mock = MockDbus::new();
         mock.expect_list_device_ids()
             .times(1)
@@ -133,8 +141,6 @@ mod tests {
 
     #[tokio::test]
     async fn discover_devices_propagates_enumeration_failures() {
-        use crate::dbus::MockDbus;
-
         let mut mock = MockDbus::new();
         mock.expect_list_device_ids()
             .times(1)
@@ -145,7 +151,6 @@ mod tests {
 
     #[tokio::test]
     async fn discover_devices_fetches_ids_and_properties() {
-        use crate::dbus::MockDbus;
         use zbus::OwnedVariant;
         use zbus::wire::Str;
 
@@ -153,10 +158,7 @@ mod tests {
             HashMap::from([("name".to_owned(), OwnedVariant::from(Str::from(name)))])
         }
 
-        let mut mock = MockDbus::new();
-        mock.expect_list_device_ids()
-            .times(1)
-            .returning(|| Ok(vec!["dev-a".to_owned(), "dev-b".to_owned()]));
+        let mut mock = two_device_ids_mock();
         mock.expect_fetch_all_props()
             .times(2)
             .returning(|path: &str| {
@@ -176,12 +178,7 @@ mod tests {
 
     #[tokio::test]
     async fn discover_devices_skips_devices_whose_properties_fail() {
-        use crate::dbus::MockDbus;
-
-        let mut mock = MockDbus::new();
-        mock.expect_list_device_ids()
-            .times(1)
-            .returning(|| Ok(vec!["dev-a".to_owned(), "dev-b".to_owned()]));
+        let mut mock = two_device_ids_mock();
         mock.expect_fetch_all_props()
             .times(2)
             .returning(|path: &str| {

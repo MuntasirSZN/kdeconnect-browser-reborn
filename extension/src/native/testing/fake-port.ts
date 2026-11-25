@@ -44,5 +44,5 @@ export class FakePort {
 
 /** Last posted message of a type, or `undefined`. */
 export function lastPosted(port: FakePort, type: Message["type"]): Message | undefined {
-  return port.posted.filter((m) => m.type === type).at(-1);
+  return port.posted.findLast((m) => m.type === type);
 }

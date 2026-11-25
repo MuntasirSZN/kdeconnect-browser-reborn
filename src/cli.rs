@@ -3,7 +3,7 @@
 use clap::Parser;
 
 /// Crate version string reported by `--version`.
-pub(crate) const CLI_VERSION: &str = "1.0.1";
+pub(crate) const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// KDE Connect Browser Reborn — Native Messaging Host.
 #[expect(

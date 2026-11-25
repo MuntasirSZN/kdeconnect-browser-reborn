@@ -57,9 +57,7 @@ async function readLegacyOptions(): Promise<ExtensionOptions | null> {
 }
 
 async function clearLegacyOptions(): Promise<void> {
-  for (const key of LEGACY_KEYS) {
-    await storage.removeItem(key);
-  }
+  await Promise.all(LEGACY_KEYS.map((key) => storage.removeItem(key)));
 }
 
 function pick<T>(value: unknown, fallback: T): T {

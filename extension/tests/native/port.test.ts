@@ -11,15 +11,17 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { PROTOCOL_VERSION } from "../../src/generated/protocol";
 import type { Device } from "../../src/generated/types";
+import type { FakePort } from "../../src/native/testing/fake-port";
+import type { ExtensionOptions, StatusData } from "../../src/shared-types";
 import { DEFAULT_OPTIONS } from "../../src/storage";
 
-vi.mock("../../src/menus/register", () => ({ rebuildContextMenus: vi.fn() }));
+vi.mock("../../src/menus/register", () => ({ rebuildContextMenus: vi.fn<() => void>() }));
 vi.mock("../../src/messaging", () => ({
-  emitDevices: vi.fn(),
-  emitStatus: vi.fn(),
-  emitClearStatus: vi.fn(),
+  emitDevices: vi.fn<(devices: Record<string, Device>) => void>(),
+  emitStatus: vi.fn<(data: StatusData) => void>(),
+  emitClearStatus: vi.fn<(key: string) => void>(),
 }));
-vi.mock("../../src/settings", () => ({ getOptions: vi.fn() }));
+vi.mock("../../src/settings", () => ({ getOptions: vi.fn<() => ExtensionOptions>() }));
 
 // All modules are imported dynamically after `vi.resetModules()` so each test
 // gets a fresh port plus the device-cache and messaging instances the port
@@ -51,7 +53,7 @@ beforeEach(async () => {
   settings = await import("../../src/settings");
   messaging = await import("../../src/messaging");
   dc = await import("../../src/device-cache");
-  (browser.runtime as { connectNative: unknown }).connectNative = vi.fn(() => fake);
+  (browser.runtime as { connectNative: unknown }).connectNative = vi.fn<() => FakePort>(() => fake);
   vi.mocked(settings.getOptions).mockReturnValue(options(true));
   port = await import("../../src/native/port");
 });

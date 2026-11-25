@@ -44,7 +44,7 @@ export interface MenuClickInfo {
 /** URL patterns for shareable http(s) links and image/audio/video contexts. */
 const HTTP_PATTERNS = ["http://*/*", "https://*/*"];
 /** The four actions a device menu can offer. */
-const ACTIONS: readonly MenuAction[] = ["open-link", "open-page", "call", "open-tab"];
+const ACTIONS = new Set<MenuAction>(["open-link", "open-page", "call", "open-tab"]);
 
 /** Build the `MenuEntry` for one action on one device. */
 function entryFor(
@@ -137,7 +137,7 @@ export function parseMenuId(id: string): { action: MenuAction; deviceId: string 
   const at = id.indexOf("@");
   if (at <= 0 || at === id.length - 1) return null;
   const action = id.slice(0, at) as MenuAction;
-  if (!ACTIONS.includes(action)) return null;
+  if (!ACTIONS.has(action)) return null;
   return { action, deviceId: id.slice(at + 1) };
 }
 

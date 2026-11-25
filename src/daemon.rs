@@ -126,19 +126,18 @@ where
     }
 }
 
-/// The protocol-error message sent when the host cannot run.
-fn protocol_error_message(text: &str) -> Message {
-    Message::result(
-        MessageType::Error,
-        serde_json::Value::String(text.to_owned()),
-    )
-}
-
 /// Tell the extension why the host cannot run, before exiting.  Failures to
 /// write are ignored — stderr already carries the error.
 pub(crate) async fn write_protocol_error(text: &str) {
     let mut writer = Writer::stdout();
-    drop(writer.write(&protocol_error_message(text)).await);
+    drop(
+        writer
+            .write(&Message::result(
+                MessageType::Error,
+                serde_json::Value::String(text.to_owned()),
+            ))
+            .await,
+    );
 }
 
 #[cfg(test)]
@@ -179,22 +178,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn protocol_error_message_carries_the_text() {
-        let msg = protocol_error_message("cannot connect to the session bus");
-        assert_eq!(msg.msg_type, MessageType::Error);
-        assert_eq!(msg.id, None);
-        assert_eq!(
-            msg.data,
-            Some(serde_json::json!("cannot connect to the session bus"))
-        );
+    /// Fresh `Reader` over a duplex stream plus the output channel and the
+    /// stdin writer for the `read_input_or_output_closed` tests.
+    fn reader_with_output() -> (
+        Reader<tokio::io::DuplexStream>,
+        tokio::sync::mpsc::UnboundedSender<Message>,
+        tokio::sync::mpsc::UnboundedReceiver<Message>,
+        tokio::io::DuplexStream,
+    ) {
+        let (stdin_tx, stdin_rx) = tokio::io::duplex(64);
+        let reader = Reader::new(stdin_rx);
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+        (reader, output_tx, output_rx, stdin_tx)
     }
 
     #[tokio::test]
     async fn stdin_reader_stops_when_stdout_receiver_is_dropped() {
-        let (_stdin_tx, stdin_rx) = tokio::io::duplex(64);
-        let mut reader = Reader::new(stdin_rx);
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+        let (mut reader, output_tx, output_rx, _stdin_tx) = reader_with_output();
 
         let reader_task =
             tokio::spawn(async move { read_input_or_output_closed(&mut reader, &output_tx).await });
@@ -211,9 +211,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_already_closed_stdout_short_circuits_the_read() {
-        let (_stdin_tx, stdin_rx) = tokio::io::duplex(64);
-        let mut reader = Reader::new(stdin_rx);
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+        let (mut reader, output_tx, output_rx, _stdin_tx) = reader_with_output();
         drop(output_rx);
 
         assert!(matches!(

@@ -68,6 +68,8 @@ pub(crate) async fn add_daemon_match_rules<D: super::Dbus + ?Sized>(conn: &D) ->
 mod tests {
     use super::*;
 
+    use crate::dbus::MockDbus;
+
     const DEVICE_PATH: &str = "/modules/kdeconnect/devices/abc123";
 
     #[test]
@@ -83,24 +85,24 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn add_device_match_rules_registers_one_rule_per_signal() {
-        use crate::dbus::MockDbus;
-        use std::sync::Mutex as StdMutex;
-
-        let recorded: std::sync::Arc<StdMutex<Vec<String>>> =
-            std::sync::Arc::new(StdMutex::new(Vec::new()));
+    /// Mock whose `add_match` pushes every received rule into a shared recording vector.
+    fn recording_add_match_mock() -> (MockDbus, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let recorded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let mock_record = recorded.clone();
         let mut mock = MockDbus::new();
-        mock.expect_add_match()
-            .times(SIGNAL_MEMBERS.len())
-            .returning(move |rule| {
-                mock_record
-                    .lock()
-                    .expect("recorded rules")
-                    .push(rule.to_owned());
-                Ok(())
-            });
+        mock.expect_add_match().returning(move |rule| {
+            mock_record
+                .lock()
+                .expect("recorded rules")
+                .push(rule.to_owned());
+            Ok(())
+        });
+        (mock, recorded)
+    }
+
+    #[tokio::test]
+    async fn add_device_match_rules_registers_one_rule_per_signal() {
+        let (mock, recorded) = recording_add_match_mock();
 
         add_device_match_rules(&mock, DEVICE_PATH)
             .await
@@ -118,20 +120,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_daemon_match_rules_registers_the_daemon_rule() {
-        use crate::dbus::MockDbus;
-        use std::sync::Mutex as StdMutex;
-
-        let recorded: std::sync::Arc<StdMutex<Vec<String>>> =
-            std::sync::Arc::new(StdMutex::new(Vec::new()));
-        let mock_record = recorded.clone();
-        let mut mock = MockDbus::new();
-        mock.expect_add_match().times(1).returning(move |rule| {
-            mock_record
-                .lock()
-                .expect("recorded rules")
-                .push(rule.to_owned());
-            Ok(())
-        });
+        let (mock, recorded) = recording_add_match_mock();
 
         add_daemon_match_rules(&mock).await.expect("register rule");
         assert_eq!(

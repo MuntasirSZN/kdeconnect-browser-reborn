@@ -12,7 +12,7 @@ use crate::image::write_image_to_temp;
 use crate::types::{Message, MessageType, ShareRequest};
 
 /// Wire protocol version served by the host.
-pub(crate) const PROTOCOL_VERSION: &str = "1.0.1";
+pub(crate) const PROTOCOL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The host's reply to a `typeVersion` request.
 fn version_response() -> Message {

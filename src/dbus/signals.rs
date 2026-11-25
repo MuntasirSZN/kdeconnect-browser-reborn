@@ -196,6 +196,20 @@ mod tests {
     use zbus::OwnedVariant;
     use zbus::wire::Str;
 
+    /// Channel and device cache shared by the `resync_devices` tests.
+    fn resync_outputs() -> (
+        tokio::sync::mpsc::UnboundedSender<Message>,
+        tokio::sync::mpsc::UnboundedReceiver<Message>,
+        std::sync::Arc<Mutex<Vec<SharedDevice>>>,
+    ) {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        (
+            output_tx,
+            output_rx,
+            std::sync::Arc::new(Mutex::new(Vec::new())),
+        )
+    }
+
     #[tokio::test]
     async fn resync_replaces_the_device_list_and_publishes_a_snapshot() {
         let mut mock = MockDbus::new();
@@ -210,8 +224,7 @@ mod tests {
         });
         mock.expect_add_match().returning(|_rule| Ok(()));
 
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
-        let devices = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let (output_tx, mut output_rx, devices) = resync_outputs();
 
         resync_devices(&mock, &devices, &output_tx).await;
 
@@ -229,8 +242,7 @@ mod tests {
             .times(1)
             .returning(|| Err(anyhow::anyhow!("lost the bus")));
 
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel();
-        let devices = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let (output_tx, mut output_rx, devices) = resync_outputs();
 
         resync_devices(&mock, &devices, &output_tx).await;
 
