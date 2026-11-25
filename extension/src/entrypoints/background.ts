@@ -2,13 +2,13 @@
  * Background service worker — wires the port, menus, and options modules.
  */
 
-import { defineBackground } from "#imports";
 import { browser } from "wxt/browser";
 
+import { defineBackground } from "#imports";
 import { getDevices } from "@/device-cache";
 import { rebuildContextMenus } from "@/menus/register";
-import { ensureConnection, disableIntegration, postShare, handleMenuClick } from "@/native/port";
 import { onMessage } from "@/messaging";
+import { ensureConnection, disableIntegration, postShare, handleMenuClick } from "@/native/port";
 import { getOptions, setOptions } from "@/settings";
 import { loadOptions, optionsItem } from "@/storage";
 

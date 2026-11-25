@@ -4,12 +4,12 @@
 
 import { browser } from "wxt/browser";
 
+import { i18n } from "#i18n";
+
 import { getDevices } from "../device-cache";
 import { getOptions } from "../settings";
 import { buildMenuSpec } from "./spec";
 import type { MenuStrings } from "./spec";
-
-import { i18n } from "#i18n";
 
 const IS_FIREFOX = import.meta.env.BROWSER === "firefox";
 

@@ -1,5 +1,4 @@
 import type { ExtensionOptions } from "./shared-types";
-
 import { DEFAULT_OPTIONS } from "./storage";
 
 let options: ExtensionOptions = { ...DEFAULT_OPTIONS };

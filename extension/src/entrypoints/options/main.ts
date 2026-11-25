@@ -3,10 +3,10 @@
  */
 
 import { onMessage, sendMessage } from "../../messaging";
-import { loadOptions, saveOptions } from "../../storage";
-import type { ExtensionOptions } from "../../shared-types";
-import { setDefaultDeviceId, getDefaultDeviceId } from "../../options/state";
 import { writeDevices, setSaveStatus, toggleDefaultDevice } from "../../options/render";
+import { setDefaultDeviceId, getDefaultDeviceId } from "../../options/state";
+import type { ExtensionOptions } from "../../shared-types";
+import { loadOptions, saveOptions } from "../../storage";
 
 /** Read the options form into the `ExtensionOptions` shape. */
 function readOptions(): ExtensionOptions {

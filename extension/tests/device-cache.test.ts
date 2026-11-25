@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { clearDevices, getDevices, setDevices, updateDevice } from "@/device-cache";
 import type { Device } from "@/generated/types";
 

@@ -3,8 +3,9 @@
  */
 
 import { Check, createIcons } from "lucide";
-import type { Device } from "../generated/types";
+
 import { renderDeviceList } from "../device-list";
+import type { Device } from "../generated/types";
 import { getDefaultDeviceId, clearSaveStatusTimer, setSaveStatusTimer } from "./state";
 
 /** Fill the `defaultDevice` select with one option per device. */

@@ -6,12 +6,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fakeBrowser } from "wxt/testing/fake-browser";
 import { browser } from "wxt/browser";
+import { fakeBrowser } from "wxt/testing/fake-browser";
 
-import { DEFAULT_OPTIONS } from "../../src/storage";
 import { PROTOCOL_VERSION } from "../../src/generated/protocol";
 import type { Device } from "../../src/generated/types";
+import { DEFAULT_OPTIONS } from "../../src/storage";
 
 vi.mock("../../src/menus/register", () => ({ rebuildContextMenus: vi.fn() }));
 vi.mock("../../src/messaging", () => ({

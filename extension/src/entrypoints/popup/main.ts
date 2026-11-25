@@ -2,12 +2,12 @@
  * Popup view — device sharing, status routing, and startup.
  */
 
-import { onMessage, sendMessage } from "../../messaging";
 import type { Device } from "../../generated/types";
-import { loadOptions } from "../../storage";
-import { getCurrentTabUrl } from "../../tabs";
+import { onMessage, sendMessage } from "../../messaging";
 import { renderEmpty, writeDevices } from "../../popup/render";
 import { addStatus, removeStatus } from "../../popup/status";
+import { loadOptions } from "../../storage";
+import { getCurrentTabUrl } from "../../tabs";
 
 let currentUrlPromise: Promise<string | null> | null = null;
 

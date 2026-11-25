@@ -5,19 +5,19 @@
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 
-import { HOST_NAME, PROTOCOL_VERSION } from "../generated/protocol";
 import { clearBadge, setBadge } from "../browser-action";
 import { clearDevices, setDevices, updateDevice } from "../device-cache";
-import { emitClearStatus, emitDevices, emitStatus } from "../messaging";
-import { getOptions } from "../settings";
+import { HOST_NAME, PROTOCOL_VERSION } from "../generated/protocol";
+import type { Message, ShareRequest } from "../generated/types";
 import { rebuildContextMenus } from "../menus/register";
 import { parseMenuId, resolveMenuUrl } from "../menus/spec";
+import { emitClearStatus, emitDevices, emitStatus } from "../messaging";
 import { createRetryState, markHandshake, nextRetryDelay, resetRetry } from "../reconnect";
 import type { RetryState } from "../reconnect";
+import { getOptions } from "../settings";
 import { shareRequest, wantsImageData, imageBytesAllowed, MAX_IMAGE_BYTES } from "../share";
 import { translateHostMessage } from "./translate";
 import type { HostEffect } from "./translate";
-import type { Message, ShareRequest } from "../generated/types";
 
 let port: Browser.runtime.Port | null = null;
 let retry: RetryState = createRetryState();

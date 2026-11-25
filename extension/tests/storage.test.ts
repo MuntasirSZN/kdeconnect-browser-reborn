@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { storage } from "#imports";
-
 import { DEFAULT_OPTIONS, loadOptions, optionsItem } from "@/storage";
 
 beforeEach(() => fakeBrowser.reset());

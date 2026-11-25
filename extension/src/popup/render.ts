@@ -3,9 +3,10 @@
  */
 
 import { createIcons } from "lucide";
+
+import { renderDeviceList } from "../device-list";
 import type { Device } from "../generated/types";
 import { DEVICE_ICONS, typeIcon } from "../icons";
-import { renderDeviceList } from "../device-list";
 
 /** Render the empty-devices placeholder. */
 export function renderEmpty(text: string): void {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { MAX_IMAGE_BYTES, imageBytesAllowed, shareRequest, wantsImageData } from "../src/share";
 
 describe("shareRequest", () => {

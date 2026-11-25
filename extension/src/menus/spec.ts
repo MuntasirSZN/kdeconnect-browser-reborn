@@ -1,8 +1,8 @@
 import type { Browser } from "wxt/browser";
 
 import type { Device } from "../generated/types";
-import type { ExtensionOptions } from "../shared-types";
 import { deviceMenuIcon } from "../icons";
+import type { ExtensionOptions } from "../shared-types";
 
 /** Which action a menu entry performs. */
 export type MenuAction = "open-link" | "open-page" | "call" | "open-tab";
