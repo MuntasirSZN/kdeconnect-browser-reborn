@@ -285,7 +285,7 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains(r#"export const PROTOCOL_VERSION = "1.0.4";"#),
+            text.contains(r#"export const PROTOCOL_VERSION = "1.0.5";"#),
             "{text}"
         );
     }
