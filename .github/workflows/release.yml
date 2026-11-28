@@ -34,7 +34,7 @@ jobs:
           - os: windows-latest
             arch: x86_64
             target: x86_64-pc-windows-msvc
-          - os: windows-11-vs2026-arm
+          - os: windows-11-arm
             arch: aarch64
             target: aarch64-pc-windows-msvc
     steps:
@@ -67,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kdeconnect-browser-reborn-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/kdeconnect-browser-reborn${{ (matrix.os == 'windows-latest' || matrix.os == 'windows-11-vs2026-arm') && '.exe' || '' }}
+          path: target/${{ matrix.target }}/release/kdeconnect-browser-reborn${{ (matrix.os == 'windows-latest' || matrix.os == 'windows-11-arm') && '.exe' || '' }}
           retention-days: 1
 
   extension:
