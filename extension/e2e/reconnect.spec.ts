@@ -38,7 +38,7 @@ test("flags a protocol mismatch", async () => {
   try {
     const popup = await mismatch.openPopup();
 
-    await expect(popup.locator("#status-update")).toContainText("Host upgrade v1.0.3 available");
+    await expect(popup.locator("#status-update")).toContainText("Host upgrade v1.0.4 available");
     await expect.poll(() => badgeText(popup)).toBe("!");
   } finally {
     await mismatch.close();
