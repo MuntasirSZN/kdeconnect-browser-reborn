@@ -148,4 +148,9 @@ jobs:
         run: >
           gh release create ${GITHUB_REF_NAME} assets/*
           --notes-file release.md
-          --discussion-category Announcements
+
+          gh discussion create \
+              --repo ${{ github.repository }} \
+              --title "KDE Connect Browser Reborn ${GITHUB_REF_NAME}" \
+              --category announcements \
+              --body-file release.md
