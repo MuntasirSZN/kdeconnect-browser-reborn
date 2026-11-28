@@ -114,6 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Required by `gh release create` and `gh release upload`
+      discussions: write # Required by `gh discussion create`
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -148,9 +149,4 @@ jobs:
         run: >
           gh release create ${GITHUB_REF_NAME} assets/*
           --notes-file release.md
-
-          gh discussion create \
-              --repo ${{ github.repository }} \
-              --title "KDE Connect Browser Reborn ${GITHUB_REF_NAME}" \
-              --category announcements \
-              --body-file release.md
+          --discussion-category "announcements"
