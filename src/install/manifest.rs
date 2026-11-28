@@ -14,7 +14,7 @@ pub(crate) const HOST_NAME: &str = "io.github.muntasirszn.kdeconnect_browser_reb
 pub(crate) const BINARY_NAME: &str = "kdeconnect-browser-reborn";
 /// Chrome Web Store id; the extension is not published yet, so --dev falls back to it.
 pub(crate) const DEFAULT_EXTENSION_ID: &str = "ofmplbbfigookafjahpeepbggpofdhbo";
-/// Web Store id of the extension; the extension is not published yet, so `--dev` falls back to it.
+/// Web Store id of the extension.
 pub(crate) const FIREFOX_EXTENSION_ID: &str = "kdeconnect-browser-reborn@muntasirszn.github.io";
 
 /// Chrome extension IDs contain exactly 32 lowercase characters in a-p.
