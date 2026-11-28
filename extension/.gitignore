@@ -3,6 +3,8 @@
 /.output/
 /.wxt/
 /coverage
+/.env.local
+/.env.submit
 
 # Playwright
 /test-results/

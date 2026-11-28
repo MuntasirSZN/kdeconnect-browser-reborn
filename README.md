@@ -41,11 +41,17 @@ extensions.
    ```
 
 4. Start your browser.
-5. Install the extension from the [Chrome Web Store](https://chrome.google.com/webstore/detail/kde-connect/ofmplbbfigookafjahpeepbggpofdhbo) or [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/kde_connect/).
+5. Install the extension from the [Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/kde-connect-browser-reborn).
 6. Done.
 
-Currently only Linux x86-64 builds are produced; however the code is portable
-and should run anywhere the Rust toolchain supports.
+## Chrome
+
+Chrome Web Store requires a one time 5$ fee to publish extensions, which I cannot afford. So, the extension is not available on Chrome Web Store. You can install it manually by following these steps:
+
+1. Download the extension from releases.
+2. Open Chrome and go to `chrome://extensions/`.
+3. Enable `Developer mode` on the top right corner.
+4. Click on `Load unpacked` and select the downloaded extension folder.
 
 ## Upgrading
 
